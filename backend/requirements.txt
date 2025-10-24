@@ -1,0 +1,33 @@
+# EPG Merge App - Python Dependencies
+# Version: 2.0.0
+
+# Core Framework
+fastapi==0.104.1
+uvicorn==0.24.0
+
+# Request Handling
+python-multipart==0.0.6
+httpx==0.25.2
+
+# Async File Operations
+aiofiles==23.2.1
+
+# Database
+sqlalchemy==2.0.23
+
+# Data Validation
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# WebSocket Support
+websockets==12.0
+
+# HTML Parsing
+beautifulsoup4==4.12.2
+
+# Cron Expression Handling
+croniter==2.0.1
+
+# Utilities
+lxml==4.9.3
+python-dateutil==2.8.2
