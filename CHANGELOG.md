@@ -2,7 +2,7 @@
 
 All notable changes to EPG Merge Application will be documented in this file.
 
-## [2.0.0] - 2025-10-24
+## [0.1] - 2025-10-24
 
 ### Added
 - Modular installation system with upgrade support
@@ -25,7 +25,7 @@ All notable changes to EPG Merge Application will be documented in this file.
 - Installation path hardcoding issues
 - Update process data preservation
 
-## [1.0.0] - 2025-10-24
+## [0.1] - 2025-10-24
 
 ### Added
 - Initial stable release
@@ -67,7 +67,7 @@ All notable changes to EPG Merge Application will be documented in this file.
 ```
 MIT License
 
-Copyright (c) 2025 [Your Name]
+Copyright (c) 2025 di5cord20
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
