@@ -37,6 +37,30 @@ else
     CONFIG_DIR="/config"
     ARCHIVE_DIR="/config/archives"
     CACHE_DIR="/config/epg_cache"
+fi══════════════════════════════════════════════════════════════════════════╗
+║                                                                           ║
+║              ⚠️  XML MERGE APPLICATION UNINSTALLER  ⚠️                    ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+EOF
+echo -e "${NC}"
+
+# Check root
+if [[ $EUID -ne 0 ]]; then
+   echo -e "${RED}[✗] This script must be run as root${NC}"
+   exit 1
+fi
+
+# Load configuration
+if [ -f "/opt/xml-merge-app/.install_config" ]; then
+    source "/opt/xml-merge-app/.install_config"
+    echo -e "${GREEN}[✓] Loaded configuration${NC}"
+else
+    echo -e "${YELLOW}[!] No installation config found, using defaults${NC}"
+    APP_DIR="/opt/xml-merge-app"
+    CONFIG_DIR="/config"
+    ARCHIVE_DIR="/config/archives"
+    CACHE_DIR="/config/xml_cache"
 fi
 
 echo ""
@@ -127,7 +151,7 @@ if [ "$CREATE_BACKUP" = true ]; then
     rm -rf "${FINAL_BACKUP}"
     
     # Move backup to safe location
-    SAFE_BACKUP_DIR="/tmp/epg-merge-backups"
+    SAFE_BACKUP_DIR="/tmp/xml-merge-backups"
     mkdir -p "${SAFE_BACKUP_DIR}"
     mv "${FINAL_BACKUP}.tar.gz" "${SAFE_BACKUP_DIR}/"
     

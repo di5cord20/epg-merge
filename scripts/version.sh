@@ -42,7 +42,7 @@ show_version_info() {
     echo ""
     
     echo -e "${CYAN}Service:${NC}"
-    SERVICE_STATUS=$(systemctl is-active epg-merge 2>/dev/null || echo "unknown")
+    SERVICE_STATUS=$(systemctl is-active xml-merge 2>/dev/null || echo "unknown")
     if [ "$SERVICE_STATUS" == "active" ]; then
         echo -e "  Status: ${GREEN}Running${NC}"
     else
@@ -157,10 +157,10 @@ check_for_updates() {
     echo ""
     
     # This is a placeholder - in production, check GitHub API
-    REMOTE_URL="https://api.github.com/repos/yourusername/epg-merge-app/releases/latest"
+    REMOTE_URL="https://api.github.com/repos/yourusername/xml-merge-app/releases/latest"
     
     echo -e "${YELLOW}Note: Update checking requires internet connection${NC}"
-    echo -e "${YELLOW}Manual check: Visit https://github.com/yourusername/epg-merge-app/releases${NC}"
+    echo -e "${YELLOW}Manual check: Visit https://github.com/yourusername/xml-merge-app/releases${NC}"
     echo ""
     
     # Attempt to fetch latest version
@@ -176,7 +176,7 @@ check_for_updates() {
                 echo -e "${YELLOW}⚠️  New version available!${NC}"
                 echo ""
                 echo -e "${CYAN}To upgrade:${NC}"
-                echo -e "  ${BLUE}sudo bash /opt/epg-merge-app/scripts/update.sh${NC}"
+                echo -e "  ${BLUE}sudo bash /opt/xml-merge-app/scripts/update.sh${NC}"
             else
                 echo -e "${GREEN}✓ You're running the latest version${NC}"
             fi
@@ -212,7 +212,7 @@ show_changelog() {
                 ;;
             "1.0.0")
                 echo "  • Initial stable release"
-                echo "  • Complete EPG merge functionality"
+                echo "  • Complete XML merge functionality"
                 echo "  • Archive management"
                 ;;
         esac
@@ -229,7 +229,7 @@ show_health_check() {
     
     # Check service
     echo -n "  Service status... "
-    if systemctl is-active --quiet epg-merge; then
+    if systemctl is-active --quiet xml-merge; then
         echo -e "${GREEN}✓ Running${NC}"
     else
         echo -e "${RED}✗ Not running${NC}"
@@ -284,8 +284,8 @@ show_health_check() {
         echo -e "${RED}✗ ${errors} issue(s) found${NC}"
         echo ""
         echo -e "${YELLOW}Recommended actions:${NC}"
-        echo -e "  1. Check logs: ${BLUE}journalctl -u epg-merge -n 50${NC}"
-        echo -e "  2. Restart service: ${BLUE}sudo systemctl restart epg-merge${NC}"
+        echo -e "  1. Check logs: ${BLUE}journalctl -u xml-merge -n 50${NC}"
+        echo -e "  2. Restart service: ${BLUE}sudo systemctl restart xml-merge${NC}"
         echo -e "  3. Rebuild frontend: ${BLUE}sudo bash ${APP_DIR}/scripts/build.sh${NC}"
     fi
     

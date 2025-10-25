@@ -1,6 +1,6 @@
 #!/bin/bash
 # EPG Merge Application - Modular Installer
-# Version: 2.0.0
+# Version: 0.1
 # Supports: Fresh install, Updates, Custom directories, Version control
 
 set -e
@@ -8,7 +8,7 @@ set -e
 # ============================================================================
 # VERSION CONTROL
 # ============================================================================
-APP_VERSION="2.0.0"
+APP_VERSION="0.1"
 MIN_UPGRADE_VERSION="1.0.0"
 VERSION_FILE="/opt/epg-merge-app/.version"
 
@@ -30,11 +30,11 @@ show_banner() {
     cat << "EOF"
 ╔═══════════════════════════════════════════════════════════════════════════╗
 ║                                                                           ║
-║                  🎬 EPG MERGE APPLICATION INSTALLER 🎬                   ║
+║                  🎬 EPG MERGE APPLICATION INSTALLER 🎬                    ║
 ║                                                                           ║
 ║                     Production-Grade TV Feed Merger                       ║
-║                        FastAPI + React + SQLite                          ║
-║                             v2.0.0 (Stable)                              ║
+║                        FastAPI + React + SQLite                           ║
+║                             v0.1 (Stable)                                 ║
 ║                                                                           ║
 ╚═══════════════════════════════════════════════════════════════════════════╝
 EOF
@@ -390,7 +390,7 @@ setup_frontend() {
     cat > package.json << 'PKG_JSON'
 {
   "name": "epg-merge-app",
-  "version": "2.0.0",
+  "version": "0.1",
   "private": true,
   "homepage": "/",
   "dependencies": {
