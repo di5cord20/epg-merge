@@ -189,7 +189,10 @@ prompt_directories() {
     CACHE_DIR=$(prompt_user "Cache directory" "${CONFIG_DIR}/epg_cache")
     
     # Service port
-    SERVICE_PORT=$(prompt_user "Service port" "9193")
+    SERVICE_PORT=$(prompt_user "Service port" "9194")
+
+    # Get the directory where the install script is located
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     
     echo ""
     log_info "Directories configured:"
@@ -198,6 +201,7 @@ prompt_directories() {
     echo -e "  Archive: ${BLUE}${ARCHIVE_DIR}${NC}"
     echo -e "  Cache:   ${BLUE}${CACHE_DIR}${NC}"
     echo -e "  Port:    ${BLUE}${SERVICE_PORT}${NC}"
+    echo -e "  Script:  ${BLUE}${SCRIPT_DIR}${NC}"
     echo ""
     
     if ! confirm_action "Proceed with these directories?"; then
@@ -326,33 +330,99 @@ setup_directories() {
 setup_backend() {
     log_info "Setting up backend..."
     
-    cd "${APP_DIR}/backend"
+    # Copy backend files from source
+    log_info "Copying backend files..."
+    if [ ! -d "${SCRIPT_DIR}/../backend" ]; then
+        log_error "Backend source directory not found at ${SCRIPT_DIR}/../backend"
+        exit 1
+    fi
+    
+    cp -r "${SCRIPT_DIR}/../backend/"* "${APP_DIR}/backend/" || {
+        log_error "Failed to copy backend files"
+        exit 1
+    }
+    
+    cd "${APP_DIR}/backend" || {
+        log_error "Failed to access backend directory"
+        exit 1
+    }
+    
+    # Check if main.py exists
+    if [ ! -f "main.py" ]; then
+        log_error "main.py not found after copying backend files"
+        exit 1
+    fi
     
     if [ "$INSTALL_MODE" == "update" ] && [ -d "venv" ]; then
         log_info "Updating existing virtual environment..."
+        
+        if [ ! -f "venv/bin/activate" ]; then
+            log_error "Virtual environment activation script not found"
+            exit 1
+        fi
+        
         source venv/bin/activate
-        pip install --upgrade pip setuptools wheel -q 2>/dev/null || true
+        
+        log_info "Upgrading pip, setuptools, wheel..."
+        pip install --upgrade pip setuptools wheel || {
+            log_warning "Failed to upgrade pip tools (continuing anyway)"
+        }
     else
         log_info "Creating Python virtual environment..."
-        $PYTHON_CMD -m venv venv
+        
+        if ! $PYTHON_CMD -m venv venv; then
+            log_error "Failed to create virtual environment"
+            exit 1
+        fi
+        
+        if [ ! -f "venv/bin/activate" ]; then
+            log_error "Virtual environment activation script not found after creation"
+            exit 1
+        fi
+        
         source venv/bin/activate
-        pip install --upgrade pip setuptools wheel -q 2>/dev/null || true
+        
+        log_info "Upgrading pip, setuptools, wheel..."
+        pip install --upgrade pip setuptools wheel || {
+            log_warning "Failed to upgrade pip tools (continuing anyway)"
+        }
     fi
     
-    log_info "Installing Python packages..."
-    pip install \
-        fastapi==0.104.1 \
-        uvicorn==0.24.0 \
-        python-multipart==0.0.6 \
-        aiofiles==23.2.1 \
-        sqlalchemy==2.0.23 \
-        pydantic==2.5.0 \
-        pydantic-settings==2.1.0 \
-        websockets==12.0 \
-        httpx==0.25.2 \
-        beautifulsoup4==4.12.2 \
-        croniter==2.0.1 \
-        -q 2>/dev/null || true
+    log_info "Installing Python packages (Python 3.13 compatible)..."
+    log_info "This may take a few minutes..."
+    
+    if ! pip install \
+        fastapi==0.115.5 \
+        uvicorn[standard]==0.32.1 \
+        python-multipart==0.0.18 \
+        aiofiles==24.1.0 \
+        sqlalchemy==2.0.36 \
+        pydantic==2.10.3 \
+        pydantic-settings==2.6.1 \
+        websockets==14.1 \
+        httpx==0.28.1 \
+        beautifulsoup4==4.12.3 \
+        croniter==5.0.1 \
+        lxml==5.3.0; then
+        log_error "Failed to install Python packages"
+        deactivate
+        exit 1
+    fi
+    
+    log_info "Verifying critical binaries..."
+    if [ ! -f "venv/bin/uvicorn" ]; then
+        log_error "uvicorn binary not found after installation"
+        pip show uvicorn
+        deactivate
+        exit 1
+    fi
+    
+    log_info "Testing uvicorn..."
+    if ! venv/bin/uvicorn --version; then
+        log_error "uvicorn test failed"
+        deactivate
+        exit 1
+    fi
     
     deactivate
     
@@ -362,19 +432,9 @@ setup_backend() {
 # ============================================================================
 # CREATE BACKEND CODE
 # ============================================================================
-
 create_backend_code() {
-    log_info "Creating backend application..."
-    
-    # This will be a separate artifact with the full main.py code
-    # For now, placeholder
-    
-    cat > "${APP_DIR}/backend/main.py" << 'BACKEND_CODE'
-# Backend code will be inserted here
-# This is handled by a separate artifact
-BACKEND_CODE
-    
-    log_success "Backend code created"
+    # This function is now deprecated - files are copied in setup_backend()
+    log_info "Backend code copied from source repository"
 }
 
 # ============================================================================
@@ -384,59 +444,36 @@ BACKEND_CODE
 setup_frontend() {
     log_info "Setting up frontend..."
     
-    cd "${APP_DIR}/frontend"
+    # Copy frontend files from source
+    log_info "Copying frontend files..."
+    if [ ! -d "${SCRIPT_DIR}/../frontend" ]; then
+        log_error "Frontend source directory not found at ${SCRIPT_DIR}/../frontend"
+        exit 1
+    fi
     
-    # Create package.json
-    cat > package.json << 'PKG_JSON'
-{
-  "name": "epg-merge-app",
-  "version": "0.1",
-  "private": true,
-  "homepage": "/",
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "axios": "^1.6.0"
-  },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build"
-  },
-  "devDependencies": {
-    "react-scripts": "5.0.1"
-  }
-}
-PKG_JSON
+    # Remove existing frontend directory if it exists (for clean copy)
+    if [ -d "${APP_DIR}/frontend" ]; then
+        rm -rf "${APP_DIR}/frontend"
+    fi
     
-    # Create public/index.html
-    mkdir -p public
-    cat > public/index.html << 'HTML'
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>EPG Merge Application</title>
-</head>
-<body>
-  <div id="root"></div>
-</body>
-</html>
-HTML
+    # Copy entire frontend directory
+    cp -r "${SCRIPT_DIR}/../frontend" "${APP_DIR}/" || {
+        log_error "Failed to copy frontend files"
+        exit 1
+    }
     
-    # Create src/index.js
-    mkdir -p src
-    cat > src/index.js << 'INDEX_JS'
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import './App.css';
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
-INDEX_JS
+    # Verify critical files exist
+    if [ ! -f "${APP_DIR}/frontend/package.json" ]; then
+        log_error "package.json not found after copying frontend files"
+        exit 1
+    fi
     
-    log_success "Frontend structure created"
+    if [ ! -f "${APP_DIR}/frontend/src/App.js" ]; then
+        log_error "App.js not found after copying frontend files"
+        exit 1
+    fi
+    
+    log_success "Frontend files copied"
 }
 
 # ============================================================================
