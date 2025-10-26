@@ -3,25 +3,25 @@ EPG Merge Application - FastAPI Backend
 Modular, maintainable architecture with proper separation of concerns
 """
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+import logging
 from pathlib import Path
-from datetime import datetime
+from contextlib import contextmanager
+from typing import List, Optional
 
-# Application imports
+# Application modules
 from config import Config
 from database import Database
-from utils.logger import setup_logging
-from utils.errors import AppError
-
 from services.source_service import SourceService
 from services.channel_service import ChannelService
 from services.merge_service import MergeService
 from services.archive_service import ArchiveService
 from services.settings_service import SettingsService
-
+from utils.logger import setup_logging
+from utils.errors import AppError, handle_exceptions
 
 # Initialize logging
 logger = setup_logging(__name__)
@@ -50,10 +50,10 @@ static_path = Path(__file__).parent / "static"
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
-# Initialize database
+# Initialize services
 db = Database(config.db_path)
 source_service = SourceService(config)
-channel_service = ChannelService(config, db)
+channel_service = ChannelService(config)
 merge_service = MergeService(config, db)
 archive_service = ArchiveService(config, db)
 settings_service = SettingsService(db)
@@ -100,7 +100,7 @@ async def health_check():
             "status": "healthy" if db_status else "unhealthy",
             "version": "0.1.0",
             "database": "ok" if db_status else "error",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": __import__("datetime").datetime.now().isoformat()
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -140,46 +140,37 @@ async def list_sources(
     timeframe: str = Query("3", regex="^(3|7|14)$"),
     feed_type: str = Query("iptv", regex="^(iptv|gracenote)$")
 ):
-    """Fetch available XML files from share.jesmann.com
-    
-    Args:
-        timeframe: Days (3, 7, or 14)
-        feed_type: Feed type (iptv or gracenote)
-    
-    Returns:
-        Dictionary with available sources
-    """
+    """Fetch available XML files from share.jesmann.com"""
     try:
         logger.info(f"Fetching sources: timeframe={timeframe}, feed_type={feed_type}")
         result = await source_service.fetch_sources(timeframe, feed_type)
         logger.info(f"Found {len(result['sources'])} sources")
         return result
+    except AppError as e:
+        logger.error(f"App error: {e.message}")
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
-        logger.error(f"Error fetching sources: {e}", exc_info=True)
+        logger.error(f"Unexpected error fetching sources: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch sources")
 
 
 @app.post("/api/sources/select", tags=["Sources"])
 async def select_sources(data: dict):
-    """Save selected sources
-    
-    Args:
-        data: Dictionary with 'sources' list
-    
-    Returns:
-        Status message with count
-    """
+    """Save selected sources"""
     try:
         sources = data.get("sources", [])
         if not isinstance(sources, list):
-            raise ValueError("sources must be a list")
+            raise AppError("sources must be a list", 400)
         
-        db.set_setting("selected_sources", str(sources))
+        settings_service.set("selected_sources", sources)
         logger.info(f"Saved {len(sources)} selected sources")
         return {"status": "saved", "count": len(sources)}
+    except AppError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
         logger.error(f"Error saving sources: {e}")
         raise HTTPException(status_code=500, detail="Failed to save sources")
+
 
 # ============================================================================
 # CHANNELS ENDPOINTS
@@ -187,20 +178,16 @@ async def select_sources(data: dict):
 
 @app.get("/api/channels/from-sources", tags=["Channels"])
 async def get_channels_from_sources(sources: str = Query("")):
-    """Get channel IDs from selected sources
-    
-    Args:
-        sources: Comma-separated list of source filenames
-    
-    Returns:
-        Dictionary with channels list
-    """
+    """Get channel IDs from selected sources"""
     try:
         sources_list = [s.strip() for s in sources.split(',') if s.strip()]
         logger.info(f"Loading channels from {len(sources_list)} sources")
         channels = await channel_service.fetch_channels_from_sources(sources_list)
         logger.info(f"Loaded {len(channels)} unique channels")
         return {"channels": channels}
+    except AppError as e:
+        logger.error(f"App error: {e.message}")
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
         logger.error(f"Error loading channels: {e}", exc_info=True)
         return {"channels": []}
@@ -208,11 +195,7 @@ async def get_channels_from_sources(sources: str = Query("")):
 
 @app.get("/api/channels/selected", tags=["Channels"])
 async def get_selected_channels():
-    """Get previously selected channels
-    
-    Returns:
-        Dictionary with selected channels list
-    """
+    """Get previously selected channels"""
     try:
         channels = channel_service.get_selected_channels()
         return {"channels": channels}
@@ -223,22 +206,17 @@ async def get_selected_channels():
 
 @app.post("/api/channels/select", tags=["Channels"])
 async def select_channels(data: dict):
-    """Save selected channels
-    
-    Args:
-        data: Dictionary with 'channels' list
-    
-    Returns:
-        Status message with count
-    """
+    """Save selected channels"""
     try:
         channels = data.get("channels", [])
         if not isinstance(channels, list):
-            raise ValueError("channels must be a list")
+            raise AppError("channels must be a list", 400)
         
         channel_service.save_selected_channels(channels)
         logger.info(f"Saved {len(channels)} selected channels")
         return {"status": "saved", "count": len(channels)}
+    except AppError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
         logger.error(f"Error saving channels: {e}")
         raise HTTPException(status_code=500, detail="Failed to save channels")
@@ -246,14 +224,10 @@ async def select_channels(data: dict):
 
 @app.post("/api/channels/export", tags=["Channels"])
 async def export_channels():
-    """Export selected channels as JSON
-    
-    Returns:
-        Export data with filename
-    """
+    """Export selected channels as JSON"""
     try:
         export_data = channel_service.export_channels()
-        logger.info(f"Exported {export_data['data']['channel_count']} channels")
+        logger.info(f"Exported {export_data['count']} channels")
         return export_data
     except Exception as e:
         logger.error(f"Error exporting channels: {e}")
@@ -262,25 +236,21 @@ async def export_channels():
 
 @app.post("/api/channels/import", tags=["Channels"])
 async def import_channels(data: dict):
-    """Import channels from JSON backup
-    
-    Args:
-        data: Dictionary with 'channels' list
-    
-    Returns:
-        Status message with count
-    """
+    """Import channels from JSON backup"""
     try:
         channels = data.get("channels", [])
         if not isinstance(channels, list):
-            raise ValueError("channels must be a list")
+            raise AppError("channels must be a list", 400)
         
         channel_service.save_selected_channels(channels)
         logger.info(f"Imported {len(channels)} channels")
         return {"status": "success", "count": len(channels)}
+    except AppError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
         logger.error(f"Error importing channels: {e}")
         raise HTTPException(status_code=500, detail="Failed to import channels")
+
 
 # ============================================================================
 # MERGE ENDPOINTS
@@ -288,21 +258,14 @@ async def import_channels(data: dict):
 
 @app.post("/api/merge/execute", tags=["Merge"])
 async def execute_merge(data: dict):
-    """Execute merge of selected sources with channel filtering
-    
-    Args:
-        data: Dictionary with sources, channels, output_filename, timeframe, feed_type
-    
-    Returns:
-        Dictionary with merge results
-    """
+    """Execute merge of selected sources with channel filtering"""
     try:
         result = await merge_service.execute_merge(data)
         logger.info(f"Merge completed: {result['channels_included']} channels, {result['programs_included']} programs")
         return result
-    except ValueError as e:
-        logger.error(f"Validation error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+    except AppError as e:
+        logger.error(f"App error: {e.message}")
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
         logger.error(f"Merge error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Merge failed")
@@ -310,11 +273,7 @@ async def execute_merge(data: dict):
 
 @app.get("/api/merge/current", tags=["Merge"])
 async def get_current_merge():
-    """Get current live merged file info
-    
-    Returns:
-        Dictionary with current merge file information
-    """
+    """Get current live merged file info"""
     try:
         return merge_service.get_current_merge_info()
     except Exception as e:
@@ -324,24 +283,18 @@ async def get_current_merge():
 
 @app.post("/api/merge/save", tags=["Merge"])
 async def save_merge(data: dict):
-    """Save current merge and archive previous version
-    
-    Args:
-        data: Dictionary with filename to save
-    
-    Returns:
-        Status message
-    """
+    """Save current merge and archive previous version"""
     try:
         result = merge_service.save_merge(data)
         logger.info(f"Merge saved: {result['current_file']}")
         return result
-    except FileNotFoundError as e:
-        logger.error(f"File not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
+    except AppError as e:
+        logger.error(f"App error: {e.message}")
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
         logger.error(f"Error saving merge: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save merge")
+
 
 # ============================================================================
 # ARCHIVES ENDPOINTS
@@ -349,11 +302,7 @@ async def save_merge(data: dict):
 
 @app.get("/api/archives/list", tags=["Archives"])
 async def list_archives():
-    """List all archived and current merged files
-    
-    Returns:
-        Dictionary with archives list
-    """
+    """List all archived and current merged files"""
     try:
         archives = archive_service.list_archives()
         logger.info(f"Listed {len(archives)} archives")
@@ -365,28 +314,20 @@ async def list_archives():
 
 @app.get("/api/archives/download/{filename}", tags=["Archives"])
 async def download_archive(filename: str):
-    """Download an archived or current XML file
-    
-    Args:
-        filename: Name of archive file to download
-    
-    Returns:
-        File response with gzip content
-    """
+    """Download an archived or current XML file"""
     try:
         file_path = archive_service.get_archive_path(filename)
         if not file_path.exists():
-            raise FileNotFoundError(f"Archive not found: {filename}")
+            raise AppError("Archive not found", 404)
         
         logger.info(f"Downloading: {filename}")
-        from fastapi.responses import FileResponse
         return FileResponse(file_path, media_type="application/gzip", filename=filename)
-    except FileNotFoundError as e:
-        logger.error(f"File not found: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
+    except AppError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
         logger.error(f"Error downloading archive: {e}")
         raise HTTPException(status_code=500, detail="Failed to download archive")
+
 
 # ============================================================================
 # SETTINGS ENDPOINTS
@@ -394,11 +335,7 @@ async def download_archive(filename: str):
 
 @app.get("/api/settings/get", tags=["Settings"])
 async def get_settings():
-    """Get all settings
-    
-    Returns:
-        Dictionary of all settings
-    """
+    """Get all settings"""
     try:
         settings = settings_service.get_all()
         return settings
@@ -409,14 +346,7 @@ async def get_settings():
 
 @app.post("/api/settings/set", tags=["Settings"])
 async def set_settings(data: dict):
-    """Save settings
-    
-    Args:
-        data: Dictionary of settings to save
-    
-    Returns:
-        Status message
-    """
+    """Save settings"""
     try:
         for key, value in data.items():
             settings_service.set(key, value)
@@ -426,24 +356,18 @@ async def set_settings(data: dict):
         logger.error(f"Error saving settings: {e}")
         raise HTTPException(status_code=500, detail="Failed to save settings")
 
+
 # ============================================================================
 # ERROR HANDLERS
 # ============================================================================
-
-@app.exception_handler(AppError)
-async def app_error_handler(request, exc):
-    """Handle application errors"""
-    logger.error(f"App error: {exc.message}")
-    return HTTPException(status_code=exc.status_code, detail=exc.message)
-
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """Global exception handler"""
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
-    raise HTTPException(status_code=500, detail="Internal server error")
+    return HTTPException(status_code=500, detail="Internal server error")
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=config.port)
+    uvicorn.run(app, host="0.0.0.0", port=9193)

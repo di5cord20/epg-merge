@@ -9,7 +9,7 @@ WorkingDirectory=/opt/epg-merge-app/backend
 Environment="CONFIG_DIR=/config"
 Environment="ARCHIVE_DIR=/config/archives"
 Environment="CACHE_DIR=/config/epg_cache"
-ExecStart=/opt/epg-merge-app/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 9193 --workers 1
+ExecStart=/opt/epg-merge-app/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 9194 --workers 1
 Restart=always
 RestartSec=10
 StandardOutput=journal
