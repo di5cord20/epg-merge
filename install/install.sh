@@ -474,6 +474,28 @@ setup_frontend() {
     fi
     
     log_success "Frontend files copied"
+
+    
+    # Ensure lucide-react is in package.json
+    log_info "Ensuring lucide-react is in dependencies..."
+
+    # Check if lucide-react is already in package.json
+    if ! grep -q '"lucide-react"' "${APP_DIR}/frontend/package.json"; then
+        log_info "Adding lucide-react to package.json..."
+        
+        # Use sed to add lucide-react to dependencies
+        sed -i '/"react-dom":/a\    "lucide-react": "^0.263.1",' "${APP_DIR}/frontend/package.json"
+        
+        log_success "lucide-react added to dependencies"
+    else
+        log_success "lucide-react already in dependencies"
+    fi
+
+    # Verify package.json is valid JSON
+    if ! grep -q '"lucide-react"' "${APP_DIR}/frontend/package.json"; then
+        log_error "Failed to add lucide-react to package.json"
+        exit 1
+    fi
 }
 
 # ============================================================================

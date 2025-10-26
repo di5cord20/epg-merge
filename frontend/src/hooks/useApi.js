@@ -15,13 +15,14 @@ export const useApi = () => {
     setError(null);
     
     try {
-      const response = await fetch(
-        `${window.location.origin}${endpoint}`,
-        {
-          headers: { 'Content-Type': 'application/json' },
-          ...options
-        }
-      );
+      // Use environment variable for API base URL, fallback to localhost:9193 for local dev
+      const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9193';
+      const url = `${apiBase}${endpoint}`;
+      
+      const response = await fetch(url, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);

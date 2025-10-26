@@ -26,42 +26,51 @@ class ArchiveService(BaseService):
         self.db = db
     
     def list_archives(self) -> List[Dict[str, Any]]:
-        """List all archives
+        """List all archives with metadata from database
         
         Returns:
-            List of archive dictionaries with metadata
+            List of archive dictionaries with accurate counts
         """
         archives = []
         
-        # Add current
+        # Add current file
         current = self.config.archive_dir / "merged.xml.gz"
         if current.exists():
-            archives.append(self._format_archive(current, is_current=True))
+            archive_data = self.db.get_archive("merged.xml.gz") if self.db else None
+            archives.append(self._format_archive(current, is_current=True, db_data=archive_data))
         
-        # Add timestamped
+        # Add timestamped archives
         for file in sorted(self.config.archive_dir.glob("*.xml.gz.*"), reverse=True):
-            archives.append(self._format_archive(file, is_current=False))
+            filename = file.name
+            archive_data = self.db.get_archive(filename) if self.db else None
+            archives.append(self._format_archive(file, is_current=False, db_data=archive_data))
         
         return archives
-    
-    def _format_archive(self, path: Path, is_current: bool) -> Dict[str, Any]:
+
+    def _format_archive(self, path: Path, is_current: bool, db_data: Dict = None) -> Dict[str, Any]:
         """Format archive for API response
         
         Args:
             path: Path to archive file
             is_current: Whether this is the current live file
+            db_data: Archive metadata from database
         
         Returns:
             Formatted archive dictionary
         """
         stat = path.stat()
+        size_bytes = stat.st_size
+        
+        # Use database values if available, otherwise N/A
+        channels = db_data.get('channels') if db_data else None
+        programs = db_data.get('programs') if db_data else None
+        
         return {
             "filename": path.name,
             "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-            "channels": "N/A",
-            "programs": "N/A",
-            "size": f"{stat.st_size / (1024**2):.2f}MB",
-            "days_left": "∞" if is_current else "N/A",
+            "channels": channels if channels is not None else None,
+            "programs": programs if programs is not None else None,
+            "size_bytes": size_bytes,
             "is_current": is_current
         }
     
@@ -82,3 +91,21 @@ class ArchiveService(BaseService):
             raise ValueError("Invalid filename")
         
         return self.config.archive_dir / filename
+    
+    def save_archive_metadata(self, filename: str, channels: int, programs: int) -> None:
+        """Save archive metadata to database
+        
+        Args:
+            filename: Archive filename
+            channels: Number of channels
+            programs: Number of programs
+        """
+        if self.db:
+            try:
+                file_path = self.config.archive_dir / filename
+                if file_path.exists():
+                    size_bytes = file_path.stat().st_size
+                    self.db.save_archive(filename, channels, programs, 0, size_bytes)
+                    self.logger.info(f"Saved metadata for {filename}: {channels} channels, {programs} programs")
+            except Exception as e:
+                self.logger.error(f"Error saving archive metadata: {e}")

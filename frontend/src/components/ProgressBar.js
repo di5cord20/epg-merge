@@ -11,7 +11,7 @@ import React from 'react';
 export const ProgressBar = ({ progress = 0, showLabel = true }) => (
   <div className="progress-bar">
     <div className="progress-fill" style={{ width: `${progress}%` }}>
-      {showLabel && <span>{progress}%</span>}
+      {showLabel && <span>{Math.round(progress)}%</span>}
     </div>
   </div>
 );

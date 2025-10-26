@@ -288,17 +288,27 @@ async def import_channels(data: dict):
 
 @app.post("/api/merge/execute", tags=["Merge"])
 async def execute_merge(data: dict):
-    """Execute merge of selected sources with channel filtering
-    
-    Args:
-        data: Dictionary with sources, channels, output_filename, timeframe, feed_type
-    
-    Returns:
-        Dictionary with merge results
-    """
+    """Execute merge of selected sources with channel filtering"""
     try:
+        logger.info(f"🔄 Starting merge execution...")
+        logger.info(f"  Sources: {len(data.get('sources', []))}")
+        logger.info(f"  Channels: {len(data.get('channels', []))}")
+        
         result = await merge_service.execute_merge(data)
-        logger.info(f"Merge completed: {result['channels_included']} channels, {result['programs_included']} programs")
+        
+        logger.info(f"✅ Merge completed: {result['channels_included']} channels, {result['programs_included']} programs")
+        logger.info(f"   File: {result['filename']} ({result['file_size']})")
+        
+        # Save archive metadata to database
+        try:
+            archive_service.save_archive_metadata(
+                result['filename'],
+                result['channels_included'],
+                result['programs_included']
+            )
+        except Exception as e:
+            logger.warning(f"Could not save archive metadata: {e}")
+        
         return result
     except ValueError as e:
         logger.error(f"Validation error: {e}")
@@ -335,6 +345,22 @@ async def save_merge(data: dict):
     try:
         result = merge_service.save_merge(data)
         logger.info(f"Merge saved: {result['current_file']}")
+        
+        # Get the original filename to retrieve its metadata
+        original_filename = data.get('filename', 'merged.xml.gz')
+        
+        # Save metadata for the current file
+        try:
+            archive_data = db.get_archive(original_filename)
+            if archive_data:
+                archive_service.save_archive_metadata(
+                    'merged.xml.gz',
+                    archive_data.get('channels'),
+                    archive_data.get('programs')
+                )
+        except Exception as e:
+            logger.warning(f"Could not save metadata for current file: {e}")
+        
         return result
     except FileNotFoundError as e:
         logger.error(f"File not found: {e}")

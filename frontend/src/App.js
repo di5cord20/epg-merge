@@ -5,6 +5,7 @@ import { useTheme } from './hooks/useTheme';
 import { SourcesPage } from './pages/SourcesPage';
 import { ChannelsPage } from './pages/ChannelsPage';
 import { MergePage } from './pages/MergePage';
+import { ArchivesPage } from './pages/ArchivesPage';
 import './App.css';
 
 /**
@@ -25,7 +26,7 @@ function App() {
       case 'merge':
         return <MergePage selectedSources={selectedSources} />;
       case 'archives':
-        return <div className="page-container"><h2>📦 Archives</h2><div className="section"><p>Archives page coming soon...</p></div></div>;
+        return <ArchivesPage />;
       case 'settings':
         return <div className="page-container"><h2>⚙️ Settings</h2><div className="section"><p>Settings page coming soon...</p></div></div>;
       default:

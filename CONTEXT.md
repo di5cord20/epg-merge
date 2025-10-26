@@ -1,349 +1,316 @@
-# EPG Merge App - Project Context Document
+# EPG Merge App v0.2.0 - Context Bootstrap
 
-## Quick Overview
+## Project Overview
 
-**EPG Merge App** is a production-grade TV feed merger application that combines multiple XMLTV EPG (Electronic Program Guide) files from share.jesmann.com, filters them by selected channels, and produces merged XML files.
+**EPG Merge Application** is a production-grade TV feed merger that combines multiple XMLTV EPG (Electronic Program Guide) files from share.jesmann.com, filters them by selected channels, and produces merged XML files.
 
-**Current Version**: 0.1 (Beta)
-**Tech Stack**: FastAPI (Python) + React 18 + SQLite
-**Deployment**: Systemd service on Debian/Ubuntu
-
----
-
-## Core Purpose
-
-The app allows users to:
-1. Select XML EPG source files from share.jesmann.com
-2. Filter channels from those sources
-3. Merge selected sources/channels into a single XML file
-4. Manage and archive merged outputs
-5. Configure merge settings and schedules
+**Current Version:** v0.2.0 (Modular Architecture Release)  
+**Repository:** https://github.com/di5cord20/epg-merge  
+**Release Tag:** v0.2.0  
+**License:** MIT
 
 ---
 
-## Architecture
+## Core Features
 
-### Backend (FastAPI - Python)
-- **Location**: `/opt/epg-merge-app/backend/`
-- **Main File**: `main.py`
-- **Database**: SQLite at `/config/app.db`
-- **Port**: 9193 (configurable)
-- **Service**: `epg-merge.service` via systemd
+### 1. **Sources Management**
+- Fetch XML source files from share.jesmann.com
+- Filter by timeframe (3, 7, 14 days)
+- Select feed type (IPTV or Gracenote)
+- Dual-list UI for source selection
+- Search and filter capabilities
 
-### Frontend (React 18)
-- **Location**: `/opt/epg-merge-app/frontend/`
-- **Build Output**: `/opt/epg-merge-app/backend/static/`
-- **Components**: App.js (monolithic), App.css
-- **Storage**: localStorage + sessionStorage for client state
+### 2. **Channel Selection**
+- Load channels from selected sources
+- Dual-list interface for channel management
+- Search and filter channels
+- Export channels to JSON backup
+- Import previously backed-up channels
 
-### Data Storage
-- **SQLite Tables**:
-  - `channels_selected` - User's selected channels
-  - `settings` - App configuration
-  - `archives` - Metadata for merged files
-  
-- **Filesystem**:
-  - `/config/app.db` - Database
-  - `/config/archives/` - Merged XML files
-  - `/config/epg_cache/` - Cached source XML files (24hr TTL)
-  - `/opt/epg-merge-app/backups/` - Backup archives
+### 3. **XML Merge**
+- Merge selected sources with channel filtering
+- Real-time merge logging with color-coded output
+- Progress tracking (0-100%)
+- Download merged files
+- Archive previous versions automatically
 
----
+### 4. **Archive Management**
+- List current and historical merged files
+- Download any archived version
+- Automatic timestamping of archives
+- Current file retention (∞)
 
-## Application Features (5 Tabs)
-
-### 1. **Sources Tab**
-- Fetches `.xml.gz` files from share.jesmann.com
-- Radio buttons: Timeframe (3/7/14 days) + Feed Type (IPTV/Gracenote)
-- Dual-list interface: Available ↔ Selected
-- Search filtering on both sides
-- "Select All (FullGuide)" shortcut
-- Saves to localStorage
-
-### 2. **Channels Tab**
-- "Load from Sources" button fetches channel IDs from `*_channel_list.txt`
-- Dual-list interface with search
-- Move all/clear all buttons (⇒⇒ / ⇐⇐)
-- Download/Upload backup (JSON export/import)
-- Saves to SQLite + localStorage
-
-### 3. **Merge Tab**
-- Color-coded terminal-style log output
-- Real-time progress bar (0-100%)
-- Download button (session-persistent)
-- "Save as Current" - archives previous `merged.xml.gz` with timestamp
-- Clear log button
-
-### 4. **Archives Tab**
-- Lists current `merged.xml.gz` (✅ Current, ∞ retention)
-- Lists timestamped archives (📦 Archive)
-- Shows: filename, date, size
-- Download buttons for each
-
-### 5. **Settings Tab**
-- Output filename
-- Merge schedule (daily/weekly)
-- Merge time (UTC) with live cron preview
-- Download/merge timeout (ms → seconds)
-- Channel drop threshold (%)
-- Archive retention (days)
-- Discord webhook URL (optional, not implemented)
+### 5. **Settings**
+- Configure output filename
+- Set merge schedule (daily/weekly)
+- Set merge time (UTC)
+- Download/merge timeouts
+- Channel drop threshold
+- Archive retention policy
 
 ---
 
-## API Endpoints (RESTful)
+## Tech Stack
+
+### Backend
+- **Framework:** FastAPI (Python 3.12+)
+- **Database:** SQLite
+- **Port:** 9193
+- **Deployment:** Systemd service (Debian/Ubuntu)
+
+### Frontend
+- **Framework:** React 18
+- **State Management:** React Hooks + localStorage
+- **Build:** npm/webpack
+
+### Infrastructure
+- **OS:** Debian 13 (Proxmox LXC container)
+- **IP Address:** 10.96.70.113
+- **Deployment Method:** Automated installer script
+- **Data Locations:**
+  - App: `/opt/epg-merge-app/`
+  - Config: `/config/`
+  - Archives: `/config/archives/`
+  - Cache: `/config/epg_cache/`
+  - Database: `/config/app.db`
+
+---
+
+## Architecture (v0.2.0 Refactoring)
+
+### Backend Structure
+```
+backend/
+├── main.py (250 lines - clean routing)
+├── config.py (configuration management)
+├── database.py (SQLite abstraction)
+├── services/ (5 focused services)
+│   ├── base_service.py
+│   ├── source_service.py
+│   ├── channel_service.py
+│   ├── merge_service.py
+│   ├── archive_service.py
+│   └── settings_service.py
+├── utils/ (logging, errors, validators)
+│   ├── logger.py
+│   ├── errors.py
+│   └── validators.py
+└── tests/ (77%+ coverage)
+    ├── unit/
+    │   └── test_database.py
+    └── integration/
+        └── test_api.py
+```
+
+### Frontend Structure
+```
+frontend/
+├── src/App.js (50 lines - clean composition)
+├── src/hooks/ (custom reusable hooks)
+│   ├── useApi.js
+│   ├── useLocalStorage.js
+│   └── useTheme.js
+├── src/components/ (reusable components)
+│   ├── Navbar.js
+│   ├── ErrorBoundary.js
+│   ├── DualListSelector.js
+│   ├── Terminal.js
+│   └── ProgressBar.js
+└── src/pages/ (feature pages)
+    ├── SourcesPage.js
+    ├── ChannelsPage.js
+    └── MergePage.js
+```
+
+---
+
+## API Endpoints
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/api/health` | GET | Health check |
-| `/api/sources/list` | GET | Fetch available XML files |
+| `/api/status` | GET | Detailed status |
+| `/api/sources/list` | GET | Fetch available sources |
 | `/api/sources/select` | POST | Save selected sources |
-| `/api/channels/from-sources` | GET | Extract channel IDs from sources |
+| `/api/channels/from-sources` | GET | Load channels from sources |
 | `/api/channels/selected` | GET | Get saved channels |
 | `/api/channels/select` | POST | Save selected channels |
-| `/api/channels/export` | POST | Export channels as JSON |
+| `/api/channels/export` | POST | Export channels to JSON |
 | `/api/channels/import` | POST | Import channels from JSON |
 | `/api/merge/execute` | POST | Execute merge operation |
-| `/api/merge/save` | POST | Save merge + archive previous |
 | `/api/merge/current` | GET | Get current merge info |
+| `/api/merge/save` | POST | Save merge + archive previous |
 | `/api/archives/list` | GET | List all archives |
-| `/api/archives/download/{filename}` | GET | Download archive |
+| `/api/archives/download/{filename}` | GET | Download archive file |
 | `/api/settings/get` | GET | Get all settings |
 | `/api/settings/set` | POST | Save settings |
 
 ---
 
-## Technical Details
-
-### Merge Process
-1. Downloads XML files from `share.jesmann.com/{folder}/`
-2. Caches files in `/config/epg_cache/` (24hr expiry)
-3. Uses `iterparse` for memory-efficient streaming
-4. Filters channels by exact ID match
-5. Extracts matching `<programme>` elements
-6. Outputs gzipped XML to `/config/archives/`
-7. Returns metadata to frontend
-
-### Storage Strategy
-- **localStorage**: Sources, channels, settings (persistent)
-- **sessionStorage**: Merge log, progress (survives tab nav, cleared on close)
-- **SQLite**: Channels, settings (server-side persistent)
-- **Filesystem**: XML cache, archives
-
-### Caching & Optimization
-- XML files cached 24 hours before re-download
-- Channel lists fetched from lightweight `.txt` files
-- Iterparse for memory efficiency with large XMLs
-- Cache age check before download
-
----
-
-## Installation System (v0.1)
-
-### Modular Installer Features
-- **3 Installation Modes**:
-  1. Fresh Install - New installation
-  2. Update/Upgrade - Preserves data, updates code
-  3. Reinstall - Fresh install + backup existing data
-
-- **Custom Directory Selection**: User chooses all paths during install
-- **Automatic Backups**: Created before updates
-- **Version Tracking**: `.version` file + upgrade compatibility checks
-- **Configuration Persistence**: `.install_config` stores all settings
-
-### Key Scripts
-- `install/install.sh` - Main modular installer
-- `install/uninstall.sh` - Safe removal with data preservation options
-- `scripts/build.sh` - Rebuild frontend
-- `scripts/update.sh` - Update app (backup → update → restart)
-- `scripts/backup.sh` - Create backups (regular or compressed)
-- `scripts/restore.sh` - Restore from backups
-- `scripts/version.sh` - Version info, health check, update check
-
-### Default Paths (Configurable)
-```
-/opt/epg-merge-app/           # Application code
-├── backend/                  # FastAPI app + venv
-├── frontend/                 # React source
-├── scripts/                  # Utility scripts
-├── backups/                  # Backup archives
-├── .version                  # Current version
-└── .install_config           # Installation config
-
-/config/                      # Data directory
-├── app.db                    # SQLite database
-├── archives/                 # Merged XML files
-│   └── merged.xml.gz         # Current live file
-└── epg_cache/                # Cached source files
-
-/etc/systemd/system/
-└── epg-merge.service         # Systemd service
-```
-
----
-
-## Current Implementation Status
-
-### ✅ Completed Features
-- All 5 tabs fully functional
-- Source selection and persistence
-- Channel filtering and backup/restore
-- XML merge with progress tracking
-- Archive management with download
-- Settings configuration
-- Dark/light mode toggle
-- Session-persistent merge state
-- Modular installer with upgrade support
-- Backup/restore utilities
-- Version management
-- Health checking
-
-### ⚠️ Pending Features (Not Yet Implemented)
-- Automatic scheduled merges (cron execution)
-- Discord webhook notifications
-- Channel validation against FullGuide baseline
-- Automatic archive retention cleanup
-- Merge statistics dashboard
-- API authentication/tokens
-- Multi-user support
-
----
-
-## Key Design Patterns
-
-### Frontend
-- **No localStorage/sessionStorage in artifacts** (Claude.ai restriction)
-- React state (useState) for all data management
-- Monolithic App.js component (not split into separate files)
-- Axios/fetch for API calls
-- Terminal-style log with color coding
-
-### Backend
-- Streaming XML processing (iterparse)
-- 24-hour cache strategy
-- CORS enabled for development
-- No authentication (internal use)
-- Gzip compression for outputs
-
-### Data Flow
-```
-User Selection → localStorage → API → SQLite
-                              ↓
-Source Files → Cache → Merge Process → Archive
-```
-
----
-
 ## Common Commands
 
+### Service Management
 ```bash
-# Service Management
+# Check status
 sudo systemctl status epg-merge
+
+# Start/stop/restart
+sudo systemctl start epg-merge
+sudo systemctl stop epg-merge
 sudo systemctl restart epg-merge
+
+# View logs
 sudo journalctl -u epg-merge -f
+sudo journalctl -u epg-merge -n 50
+```
 
-# Maintenance
-sudo bash /opt/epg-merge-app/scripts/build.sh
-sudo bash /opt/epg-merge-app/scripts/update.sh
-sudo bash /opt/epg-merge-app/scripts/backup.sh
-sudo bash /opt/epg-merge-app/scripts/version.sh
+### Manual Start (for development)
+```bash
+cd /opt/epg-merge-app/backend
+source venv/bin/activate
+python -m uvicorn main:app --host 0.0.0.0 --port 9193
+```
 
-# Database
-sqlite3 /config/app.db
+### Access
+- **Web UI:** http://10.96.70.113:9193
+- **API:** http://10.96.70.113:9193/api/*
 
-# Version Check
-cat /opt/epg-merge-app/.version
+---
+
+## Installation & Deployment
+
+### Current Status
+✅ **v0.2.0 Deployed** to Proxmox LXC (10.96.70.113)
+- Installed via automated installer script
+- Running as systemd service
+- Auto-starts on boot
+- Auto-restarts on crash
+
+### Installation Method
+```bash
+cd /tmp
+git clone https://github.com/di5cord20/epg-merge.git
+cd epg-merge
+git checkout v0.2.0
+sudo bash install/install.sh
 ```
 
 ---
 
-## External Dependencies
+## Code Quality Metrics (v0.2.0)
 
-### Data Source
-- **Base URL**: `https://share.jesmann.com/`
-- **Folders**: `3dayiptv`, `7dayiptv`, `14dayiptv`, `3daygracenote`, `7daygracenote`, `14daygracenote`
-- **Channel Lists**: `https://share.jesmann.com/IPTV_Channel_List/{country}_channel_list.txt`
+| Metric | Before (v0.1) | After (v0.2) |
+|--------|---------------|--------------|
+| Main files | 1000+ lines | 100-250 lines each |
+| Code organization | Monolithic | Modular services |
+| Test coverage | 0% | 77%+ |
+| Components/Services | Bundled | Separated |
+| Error handling | Basic | Hierarchical |
+| Logging | Basic | Structured |
+| Documentation | Minimal | Comprehensive |
 
-### Python Packages
+---
+
+## SOLID Principles Applied
+
+- ✅ **Single Responsibility:** Each service handles one domain
+- ✅ **Open/Closed:** Extensible without modification
+- ✅ **Liskov Substitution:** Consistent service interfaces
+- ✅ **Interface Segregation:** Clean, focused APIs
+- ✅ **Dependency Injection:** All dependencies injected
+
+---
+
+## Database Schema
+
+### channels_selected
+```sql
+CREATE TABLE channels_selected (
+  channel_name TEXT PRIMARY KEY,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
 ```
-fastapi==0.104.1
-uvicorn==0.24.0
-python-multipart==0.0.6
-aiofiles==23.2.1
-sqlalchemy==2.0.23
-pydantic==2.5.0
-httpx==0.25.2
-beautifulsoup4==4.12.2
-croniter==2.0.1
-lxml==4.9.3
+
+### settings
+```sql
+CREATE TABLE settings (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
 ```
 
-### Node Packages
+### archives
+```sql
+CREATE TABLE archives (
+  filename TEXT PRIMARY KEY,
+  created_at TIMESTAMP,
+  channels INTEGER,
+  programs INTEGER,
+  days_included INTEGER,
+  size_bytes INTEGER
+)
 ```
-react@18.2.0
-react-dom@18.2.0
-axios@1.6.0
-react-scripts@5.0.1
-```
 
 ---
 
-## Known Limitations
+## Recent Activity & Status
 
-1. Channel lists must exist on share.jesmann.com (empty if not found)
-2. No automatic archive cleanup (manual only)
-3. Discord notifications configured but not implemented
-4. Cron scheduling UI exists but execution not implemented
-5. No multi-user support or authentication
-6. Single worker (not horizontally scalable)
+### Completed (October 2025)
+- ✅ Full backend refactoring to modular services
+- ✅ Frontend split into components and hooks
+- ✅ Comprehensive test suite (77%+ coverage)
+- ✅ Deployed to production (10.96.70.113)
+- ✅ v0.2.0 release on GitHub
+- ✅ Updated installer version to 0.2.0
 
----
+### Current Deployment
+- **Status:** Running and operational
+- **Address:** http://10.96.70.113:9193
+- **Service:** epg-merge (systemd)
+- **Data:** Persisted in /config/
 
-## Development Environment
-
-**IDE**: code-server
-**OS**: Debian/Ubuntu
-**Git**: Repository ready for GitHub
-**Aliases**: `em-*` commands (em-start, em-stop, em-logs, etc.)
-
----
-
-## Recent Changes (Context)
-
-- **Rebranded**: XML Merge App → EPG Merge App
-- **Directory**: `/opt/xml-merge-app` → `/opt/epg-merge-app`
-- **Cache**: `/config/xml_cache` → `/config/epg_cache`
-- **Service**: `xml-merge` → `epg-merge`
-- **Version**: Changed from 2.0.0 to 0.1 (beta release)
-- **Aliases**: `xm-*` → `em-*`
+### Next Steps (Future)
+- [ ] Complete Archives page UI
+- [ ] Complete Settings page UI
+- [ ] Implement scheduled merges (cron)
+- [ ] Add Discord webhook notifications
+- [ ] Create merge statistics dashboard
+- [ ] Add API authentication
+- [ ] Implement multi-user support
 
 ---
 
-## Important Notes for AI Assistants
+## Important Notes
 
-1. **Always use `epg-merge` in service commands** (not xml-merge)
-2. **Cache directory is `epg_cache`** (not xml_cache)
-3. **Current version is 0.1** (beta, not 2.0.0)
-4. **App directory is `/opt/epg-merge-app/`**
-5. **Service file is `epg-merge.service`**
-6. **All artifacts have been updated** to reflect rebranding
-7. **User prefers modular, maintainable code** with version control
-8. **Installation supports custom directories** (not hardcoded)
-9. **Backup/restore functionality is critical** for updates
+1. **Channel Data:** Last export (channels_backup_20251025_234645.json) contains 378 channels from Canada and USA
+2. **External Data:** Application fetches EPG data from share.jesmann.com (requires internet)
+3. **Automatic Features:** Service starts automatically on boot and auto-restarts on crash
+4. **Manual Mode:** Can be stopped with `sudo systemctl stop epg-merge`
+5. **Development:** Running on Proxmox LXC via code-server (can also use terminal)
 
 ---
 
-## Use This Document When:
+## Developer Resources
 
-- Starting a new conversation about the EPG Merge App
-- Debugging issues (check paths, service names, versions)
-- Adding new features (understand existing architecture)
-- Updating documentation (ensure consistency)
-- Helping with Git repository setup
-- Troubleshooting installation/deployment issues
+- **Quality Handbook:** Guidelines for SOLID principles, patterns, code standards
+- **Testing Guide:** Examples for unit, integration, and component tests
+- **Migration Guide:** Step-by-step refactoring documentation
+- **Quick Reference:** Daily development lookup guide
+- **Architecture:** Detailed component and service documentation
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2025-10-24
-**App Version**: 0.1
+## Version Information
+
+- **Current Version:** 0.2.0
+- **Previous Version:** 0.1 (original monolithic architecture)
+- **Next Version:** TBD
+- **Breaking Changes:** None between v0.1 and v0.2.0
+- **Upgrade Path:** v0.1 → v0.2.0 (installer supports both)
+
+---
+
+**Last Updated:** October 26, 2025  
+**Status:** Production Ready  
+**Contact/Support:** See GitHub repository

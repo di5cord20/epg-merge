@@ -1,12 +1,13 @@
 {
   "name": "epg-merge-app",
-  "version": "0.1",
+  "version": "0.2.0",
   "private": true,
   "homepage": "/",
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "axios": "^1.6.0"
+    "axios": "^1.6.0",
+    "lucide-react": "^0.263.1"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -16,8 +17,15 @@
     "extends": "react-app"
   },
   "browserslist": {
-    "production": [">0.2%", "not dead", "not op_mini all"],
-    "development": ["last 1 chrome version", "last 1 firefox version"]
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version"
+    ]
   },
   "devDependencies": {
     "react-scripts": "5.0.1"
