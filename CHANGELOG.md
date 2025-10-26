@@ -2,7 +2,28 @@
 
 All notable changes to EPG Merge Application will be documented in this file.
 
-## [0.1] - 2025-10-24
+## [0.2.1] - 2025-10-26
+
+### Added
+- Complete Archives page implementation with table view
+- Download functionality for all archived files
+- Enhanced merge progress tracking with detailed logs
+- Color-coded terminal output in merge page
+- Better archive metadata display
+
+### Changed
+- Improved MergePage UI with better progress visualization
+- Enhanced ProgressBar component with smoother animations
+- Updated useApi hook with better error handling
+- Improved archive service with detailed formatting
+- Better merge service progress reporting
+
+### Fixed
+- Progress bar display issues
+- Terminal log rendering improvements
+- Error message handling in merge operations
+ 
+## [0.2] - 2025-10-25
 
 ### Added
 - Modular installation system with upgrade support
