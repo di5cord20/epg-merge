@@ -1,6 +1,6 @@
 #!/bin/bash
 # EPG Merge Application - Modular Installer
-# Version: 0.1
+# Version: 0.2.0
 # Supports: Fresh install, Updates, Custom directories, Version control
 
 set -e
@@ -8,8 +8,8 @@ set -e
 # ============================================================================
 # VERSION CONTROL
 # ============================================================================
-APP_VERSION="0.1"
-MIN_UPGRADE_VERSION="1.0.0"
+APP_VERSION="0.2.0"
+MIN_UPGRADE_VERSION="0.1"
 VERSION_FILE="/opt/epg-merge-app/.version"
 
 # ============================================================================
@@ -189,7 +189,7 @@ prompt_directories() {
     CACHE_DIR=$(prompt_user "Cache directory" "${CONFIG_DIR}/epg_cache")
     
     # Service port
-    SERVICE_PORT=$(prompt_user "Service port" "9194")
+    SERVICE_PORT=$(prompt_user "Service port" "9193")
 
     # Get the directory where the install script is located
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
