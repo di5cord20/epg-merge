@@ -2,6 +2,27 @@
 
 All notable changes to EPG Merge Application will be documented in this file.
 
+## [0.3.0] - 2025-10-27
+
+### Added
+- Complete Settings page implementation
+- Real-time cron expression generator
+- Merge schedule configuration (daily/weekly)
+- Custom timeout settings (download & merge)
+- Quality control thresholds
+- Archive retention policy
+- Discord webhook support
+- Settings persistence to backend database
+- Form validation and user feedback
+
+### Changed
+- Enhanced navbar with active Settings tab
+- Improved settings UI/UX with helper text
+- Settings now fully backed by SQLite database
+
+### Fixed
+- Settings page now fully functional and integrated
+
 ## [0.2.1] - 2025-10-26
 
 ### Added

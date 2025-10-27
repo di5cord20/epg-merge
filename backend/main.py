@@ -33,7 +33,7 @@ config = Config()
 app = FastAPI(
     title="EPG Merge API",
     description="TV feed merger with channel filtering",
-    version="0.1.0"
+    version="0.3.0"
 )
 
 # Middleware
@@ -98,7 +98,7 @@ async def health_check():
         db_status = db.health_check()
         return {
             "status": "healthy" if db_status else "unhealthy",
-            "version": "0.1.0",
+            "version": "0.3.0",
             "database": "ok" if db_status else "error",
             "timestamp": datetime.now().isoformat()
         }
@@ -113,7 +113,7 @@ async def get_status():
     try:
         return {
             "app": {
-                "version": "0.1.0",
+                "version": "0.3.0",
                 "environment": config.environment
             },
             "storage": {

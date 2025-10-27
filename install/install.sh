@@ -1,6 +1,6 @@
 #!/bin/bash
 # EPG Merge Application - Modular Installer
-# Version: 0.2.0
+# Version: 0.3.0
 # Supports: Fresh install, Updates, Custom directories, Version control
 
 set -e
@@ -8,7 +8,7 @@ set -e
 # ============================================================================
 # VERSION CONTROL
 # ============================================================================
-APP_VERSION="0.2.0"
+APP_VERSION="0.3.0"
 MIN_UPGRADE_VERSION="0.1"
 VERSION_FILE="/opt/epg-merge-app/.version"
 

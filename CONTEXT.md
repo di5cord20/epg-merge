@@ -1,10 +1,10 @@
-# EPG Merge App v0.2.0 - Context Bootstrap
+# EPG Merge App v0.3.0 - Context Bootstrap
 
 ## Project Overview
 
 **EPG Merge Application** is a production-grade TV feed merger that combines multiple XMLTV EPG (Electronic Program Guide) files from share.jesmann.com, filters them by selected channels, and produces merged XML files.
 
-**Current Version:** v0.2.0 (Modular Architecture with Smart Caching)
+**Current Version:** v0.3.0 (Modular Architecture with Smart Caching)
 **Repository:** https://github.com/di5cord20/epg-merge
 **License:** MIT
 **Status:** Operational and tested locally

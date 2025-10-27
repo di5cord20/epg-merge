@@ -1,7 +1,7 @@
 #!/bin/bash
 # EPG Merge App - Frontend Build Script
 # Builds React frontend from source and deploys to backend
-# Version: 0.2.0
+# Version: 0.3.0
 
 set -e
 
@@ -24,7 +24,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 echo -e "${BLUE}╔═══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║         EPG Merge App - Frontend Build v0.2.0             ║${NC}"
+echo -e "${BLUE}║         EPG Merge App - Frontend Build v0.3.0             ║${NC}"
 echo -e "${BLUE}╚═══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 

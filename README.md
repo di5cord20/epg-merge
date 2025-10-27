@@ -58,7 +58,15 @@ A production-grade TV feed merger application that combines multiple XMLTV EPG (
 - Discord webhook URL (optional)
 - All settings persist to localStorage + SQLite
 
-### 6. **Backend API Endpoints**
+### 6. **Settings Management** (New in v0.3.0)
+- Configure output filename
+- Set merge schedule (daily/weekly)
+- Customize timeout values
+- Quality control thresholds
+- Archive retention policies
+- Discord webhook notifications (optional)
+
+### 7. **Backend API Endpoints**
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
