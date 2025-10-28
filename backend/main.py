@@ -22,6 +22,12 @@ from services.merge_service import MergeService
 from services.archive_service import ArchiveService
 from services.settings_service import SettingsService
 
+from version import get_version
+
+app = FastAPI(
+    title="EPG Merge API",
+    version=get_version()
+)
 
 # Initialize logging
 logger = setup_logging(__name__)
@@ -94,11 +100,12 @@ async def root():
 @app.get("/api/health", tags=["Health"])
 async def health_check():
     """Health check endpoint"""
+    from version import get_version
     try:
         db_status = db.health_check()
         return {
             "status": "healthy" if db_status else "unhealthy",
-            "version": "0.3.0",
+            "version": get_version(),
             "database": "ok" if db_status else "error",
             "timestamp": datetime.now().isoformat()
         }
@@ -413,6 +420,18 @@ async def download_archive(filename: str):
     except Exception as e:
         logger.error(f"Error downloading archive: {e}")
         raise HTTPException(status_code=500, detail="Failed to download archive")
+    
+@app.post("/api/archives/cleanup", tags=["Archives"])
+async def cleanup_archives():
+    """Trigger archive cleanup based on retention policy"""
+    try:
+        retention = int(settings_service.get("archive_retention", "30"))
+        result = archive_service.cleanup_old_archives(retention)
+        logger.info(f"Archive cleanup triggered: {result['deleted']} deleted")
+        return result
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
+        raise HTTPException(status_code=500, detail="Cleanup failed")
 
 # ============================================================================
 # SETTINGS ENDPOINTS

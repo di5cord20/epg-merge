@@ -36,7 +36,7 @@ export const Navbar = ({ currentPage, onPageChange, onThemeToggle, darkMode }) =
         </div>
       </div>
       <div className="nav-right">
-        <span className="version">v0.3.0</span>
+        <span className="version">v{process.env.REACT_APP_VERSION || '0.3.1'}</span>
         <button 
           className="theme-toggle" 
           onClick={onThemeToggle}

@@ -5,7 +5,7 @@ Handles archive management and file organization
 
 from pathlib import Path
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from config import Config
 from database import Database
@@ -109,3 +109,45 @@ class ArchiveService(BaseService):
                     self.logger.info(f"Saved metadata for {filename}: {channels} channels, {programs} programs")
             except Exception as e:
                 self.logger.error(f"Error saving archive metadata: {e}")
+
+    def cleanup_old_archives(self, retention_days: int = 30) -> Dict[str, Any]:
+        """Delete archives older than retention policy
+        
+        Args:
+            retention_days: Keep archives for this many days
+        
+        Returns:
+            Cleanup statistics
+        """
+        if retention_days <= 0:
+            return {"deleted": 0, "freed_bytes": 0, "message": "Retention disabled"}
+        
+        deleted_count = 0
+        freed_bytes = 0
+        cutoff_date = datetime.now() - timedelta(days=retention_days)
+        
+        self.logger.info(f"Cleanup: Removing archives older than {retention_days} days")
+        
+        # Skip current file
+        current = self.config.archive_dir / "merged.xml.gz"
+        
+        for file in self.config.archive_dir.glob("*.xml.gz.*"):
+            try:
+                file_time = datetime.fromtimestamp(file.stat().st_mtime)
+                
+                if file_time < cutoff_date:
+                    size = file.stat().st_size
+                    file.unlink()
+                    deleted_count += 1
+                    freed_bytes += size
+                    self.logger.info(f"Deleted: {file.name}")
+            except Exception as e:
+                self.logger.error(f"Error deleting {file.name}: {e}")
+        
+        self.logger.info(f"Cleanup complete: {deleted_count} files deleted, {freed_bytes / (1024**2):.2f}MB freed")
+        
+        return {
+            "deleted": deleted_count,
+            "freed_bytes": freed_bytes,
+            "freed_mb": round(freed_bytes / (1024**2), 2)
+        }

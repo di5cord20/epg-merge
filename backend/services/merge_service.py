@@ -33,16 +33,20 @@ class MergeService(BaseService):
     async def execute_merge(self, data: dict) -> Dict[str, Any]:
         """Execute merge of selected sources with channel filtering
         
+        Creates a TEMPORARY merge file with timestamp, allowing user to review
+        before promoting to current via "Save as Current" button
+        
         Args:
-            data: Dictionary with sources, channels, output_filename, timeframe, feed_type
+            data: Dictionary with sources, channels, timeframe, feed_type
         
         Returns:
-            Dictionary with merge results
+            Dictionary with merge results including temporary filename
         """
         try:
+            from datetime import datetime
+            
             sources = data.get('sources', [])
             channels = data.get('channels', [])
-            output_filename = data.get('output_filename', 'merged.xml.gz')
             timeframe = data.get('timeframe', '3')
             feed_type = data.get('feed_type', 'iptv')
             
@@ -56,7 +60,14 @@ class MergeService(BaseService):
             self.logger.info(f"  Channels to filter: {len(channels)}")
             self.logger.info(f"  Timeframe: {timeframe} days")
             self.logger.info(f"  Feed type: {feed_type}")
-            self.logger.info(f"  Output: {output_filename}")
+            self.logger.info(f"")
+            
+            # IMPORTANT: Generate UNIQUE temporary filename with timestamp
+            # This allows multiple merges without overwriting each other
+            merge_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            temp_filename = f"merged_{merge_timestamp}.xml.gz"
+            
+            self.logger.info(f"  Output (temporary): {temp_filename}")
             self.logger.info(f"")
             
             # Phase 1: Download sources
@@ -71,14 +82,14 @@ class MergeService(BaseService):
             self.logger.info(f"PHASE 2: Merging and Filtering XML")
             self.logger.info(f"=" * 60)
             
-            # Phase 2: Merge XML
-            result = await self._merge_xml_files(downloaded_files, channels, output_filename)
+            # Phase 2: Merge XML with TEMPORARY filename
+            result = await self._merge_xml_files(downloaded_files, channels, temp_filename)
             
             self.logger.info(f"")
             self.logger.info(f"PHASE 3: Final Summary")
             self.logger.info(f"=" * 60)
             self.logger.info(f"✅ Merge Completed Successfully")
-            self.logger.info(f"  Filename: {result['filename']}")
+            self.logger.info(f"  Temporary filename: {result['filename']}")
             self.logger.info(f"  Channels included: {result['channels_included']}")
             self.logger.info(f"  Programs included: {result['programs_included']}")
             self.logger.info(f"  File size: {result['file_size']}")
@@ -93,6 +104,96 @@ class MergeService(BaseService):
             self.logger.error(f"Error: {e}")
             self.logger.error(f"")
             raise
+
+
+    async def _merge_xml_files(self, files: List[str], channels: List[str], output_filename: str) -> Dict[str, Any]:
+        """Merge XML files using streaming with progress logging
+        
+        Args:
+            files: List of gzipped XML file paths
+            channels: List of channel IDs to filter
+            output_filename: Output filename
+        
+        Returns:
+            Dictionary with merge statistics (channels_included, programs_included, etc)
+        """
+        merged_root = ET.Element("tv")
+        channels_seen = set()
+        programmes_seen = set()
+        keep_channels = set(channels)
+        files_processed = 0
+        
+        total_files = len(files)
+        
+        for filepath in files:
+            try:
+                filename = filepath.split('/')[-1] if '/' in filepath else filepath
+                self.logger.info(f"Parsing {filename}... ({files_processed + 1}/{total_files})")
+                
+                if filepath.endswith('.gz'):
+                    f = gzip.open(filepath, 'rt', encoding='utf-8', errors='ignore')
+                else:
+                    f = open(filepath, 'rt', encoding='utf-8', errors='ignore')
+                
+                file_channels = 0
+                file_programmes = 0
+                
+                with f:
+                    for event, elem in ET.iterparse(f, events=('end',)):
+                        if elem.tag == 'channel':
+                            ch_id = elem.get('id')
+                            if ch_id in keep_channels and ch_id not in channels_seen:
+                                merged_root.append(copy.deepcopy(elem))
+                                channels_seen.add(ch_id)
+                                file_channels += 1
+                            elem.clear()
+                        
+                        elif elem.tag == 'programme':
+                            ch_id = elem.get('channel')
+                            if ch_id in channels_seen:
+                                title_elem = elem.find('title')
+                                title = title_elem.text if title_elem is not None else ''
+                                key = (ch_id, elem.get('start', ''), title)
+                                if key not in programmes_seen:
+                                    merged_root.append(copy.deepcopy(elem))
+                                    programmes_seen.add(key)
+                                    file_programmes += 1
+                            elem.clear()
+                
+                self.logger.info(f"  ✓ {file_channels} channels, {file_programmes} programmes from {filename}")
+                files_processed += 1
+                
+            except Exception as e:
+                self.logger.error(f"Error parsing {filepath}: {e}")
+        
+        self.logger.info(f"")
+        self.logger.info(f"Merge Statistics:")
+        self.logger.info(f"  Files processed: {files_processed}/{total_files}")
+        self.logger.info(f"  Channels included: {len(channels_seen)}")
+        self.logger.info(f"  Programmes included: {len(programmes_seen)}")
+        self.logger.info(f"")
+        
+        # Write output
+        output_path = self.config.archive_dir / output_filename
+        self.logger.info(f"Writing output file...")
+        
+        xml_bytes = ET.tostring(merged_root, encoding='utf-8', xml_declaration=True)
+        with gzip.open(output_path, 'wb') as f:
+            f.write(xml_bytes)
+        
+        file_size = output_path.stat().st_size
+        file_size_mb = file_size / (1024**2)
+        
+        self.logger.info(f"✓ Output written: {output_filename} ({file_size_mb:.2f}MB)")
+        self.logger.info(f"")
+        
+        return {
+            "status": "success",
+            "filename": output_filename,
+            "channels_included": len(channels_seen),
+            "programs_included": len(programmes_seen),
+            "file_size": f"{file_size_mb:.2f}MB"
+        }
 
 
     async def _download_sources(self, sources: List[str], timeframe: str, feed_type: str) -> List[str]:
@@ -196,95 +297,6 @@ class MergeService(BaseService):
         
         return downloaded
     
-    async def _merge_xml_files(self, files: List[str], channels: List[str], output_filename: str) -> Dict[str, Any]:
-        """Merge XML files using streaming with progress logging
-        
-        Args:
-            files: List of gzipped XML file paths
-            channels: List of channel IDs to filter
-            output_filename: Output filename
-        
-        Returns:
-            Dictionary with merge statistics
-        """
-        merged_root = ET.Element("tv")
-        channels_seen = set()
-        programmes_seen = set()
-        keep_channels = set(channels)
-        files_processed = 0
-        
-        total_files = len(files)
-        
-        for filepath in files:
-            try:
-                filename = filepath.split('/')[-1] if '/' in filepath else filepath
-                self.logger.info(f"Parsing {filename}... ({files_processed + 1}/{total_files})")
-                
-                if filepath.endswith('.gz'):
-                    f = gzip.open(filepath, 'rt', encoding='utf-8', errors='ignore')
-                else:
-                    f = open(filepath, 'rt', encoding='utf-8', errors='ignore')
-                
-                file_channels = 0
-                file_programmes = 0
-                
-                with f:
-                    for event, elem in ET.iterparse(f, events=('end',)):
-                        if elem.tag == 'channel':
-                            ch_id = elem.get('id')
-                            if ch_id in keep_channels and ch_id not in channels_seen:
-                                merged_root.append(copy.deepcopy(elem))
-                                channels_seen.add(ch_id)
-                                file_channels += 1
-                            elem.clear()
-                        
-                        elif elem.tag == 'programme':
-                            ch_id = elem.get('channel')
-                            if ch_id in channels_seen:
-                                title_elem = elem.find('title')
-                                title = title_elem.text if title_elem is not None else ''
-                                key = (ch_id, elem.get('start', ''), title)
-                                if key not in programmes_seen:
-                                    merged_root.append(copy.deepcopy(elem))
-                                    programmes_seen.add(key)
-                                    file_programmes += 1
-                            elem.clear()
-                
-                self.logger.info(f"  ✓ {file_channels} channels, {file_programmes} programmes from {filename}")
-                files_processed += 1
-                
-            except Exception as e:
-                self.logger.error(f"Error parsing {filepath}: {e}")
-        
-        self.logger.info(f"")
-        self.logger.info(f"Merge Statistics:")
-        self.logger.info(f"  Files processed: {files_processed}/{total_files}")
-        self.logger.info(f"  Channels included: {len(channels_seen)}")
-        self.logger.info(f"  Programmes included: {len(programmes_seen)}")
-        self.logger.info(f"")
-        
-        # Write output
-        output_path = self.config.archive_dir / output_filename
-        self.logger.info(f"Writing output file...")
-        
-        xml_bytes = ET.tostring(merged_root, encoding='utf-8', xml_declaration=True)
-        with gzip.open(output_path, 'wb') as f:
-            f.write(xml_bytes)
-        
-        file_size = output_path.stat().st_size
-        file_size_mb = file_size / (1024**2)
-        
-        self.logger.info(f"✓ Output written: {output_filename} ({file_size_mb:.2f}MB)")
-        self.logger.info(f"")
-        
-        return {
-            "status": "success",
-            "filename": output_filename,
-            "channels_included": len(channels_seen),
-            "programs_included": len(programmes_seen),
-            "file_size": f"{file_size_mb:.2f}MB"
-        }
-    
     def get_current_merge_info(self) -> Dict[str, Any]:
         """Get current live merged file info
         
@@ -303,76 +315,164 @@ class MergeService(BaseService):
         return {"filename": "merged.xml.gz", "exists": False}
     
     def save_merge(self, data: dict) -> Dict[str, Any]:
-        """Save merge and archive previous version
+        """Save merge and archive previous version with proper metadata handling
         
         Args:
-            data: Dictionary with filename to save
+            data: Dictionary with:
+                - filename: Current merge filename to save as current
+                - channels: Number of channels
+                - programs: Number of programs
         
         Returns:
-            Status message
+            Status dictionary
         """
         import shutil
         from datetime import datetime
         
         filename = data.get('filename', 'merged.xml.gz')
+        channels = data.get('channels', 0)
+        programs = data.get('programs', 0)
+        
+        # Source file (the newly merged file)
         merged_path = self.config.archive_dir / filename
+        
+        if not merged_path.exists():
+            raise FileNotFoundError(f"File {filename} not found in {self.config.archive_dir}")
+        
+        # Current live file path
         current_path = self.config.archive_dir / "merged.xml.gz"
         
-        # Validate source file exists
-        if not merged_path.exists():
-            raise FileNotFoundError(f"File {filename} not found")
+        self.logger.info(f"💾 Saving merge: {filename}")
+        self.logger.info(f"   Source: {merged_path.name}")
+        self.logger.info(f"   Target: merged.xml.gz")
         
-        self.logger.info(f"Saving merge: {filename}")
-        
-        # Archive previous current file if it exists and is different
+        # STEP 1: Archive the PREVIOUS version if it exists
         if current_path.exists() and current_path != merged_path:
-            timestamp = datetime.fromtimestamp(current_path.stat().st_mtime).strftime("%Y%m%d_%H%M%S")
+            self.logger.info(f"📦 Archiving previous version...")
+            
+            # Get creation time of the current file
+            creation_time = datetime.fromtimestamp(current_path.stat().st_mtime)
+            timestamp = creation_time.strftime("%Y%m%d_%H%M%S")
             archive_path = self.config.archive_dir / f"merged.xml.gz.{timestamp}"
             
-            self.logger.info(f"Archiving previous version: {archive_path.name}")
+            self.logger.info(f"   Archive: {archive_path.name}")
+            
+            # Move previous current to archive with timestamp
             shutil.move(str(current_path), str(archive_path))
             
-            # Save metadata for archived file
+            # Save metadata for archived file from database
             try:
                 if self.db:
                     archive_data = self.db.get_archive(filename)
                     if archive_data:
+                        archive_size = archive_path.stat().st_size
                         self.db.save_archive(
                             archive_path.name,
                             archive_data.get('channels'),
                             archive_data.get('programs'),
                             0,
-                            archive_path.stat().st_size
+                            archive_size
                         )
-                        self.logger.info(f"Archived metadata saved for {archive_path.name}")
+                        self.logger.info(f"   ✓ Archive metadata saved")
             except Exception as e:
-                self.logger.warning(f"Could not save metadata for archived file: {e}")
+                self.logger.warning(f"   ⚠️  Could not save archive metadata: {e}")
         
-        # Copy/move the new file to current if different name
+        # STEP 2: Move/copy the new file to current location
         if filename != "merged.xml.gz":
-            self.logger.info(f"Copying {filename} to merged.xml.gz")
-            shutil.copy2(str(merged_path), str(current_path))
+            self.logger.info(f"📋 Setting new file as current...")
+            
+            # Move the source file to merged.xml.gz
+            shutil.move(str(merged_path), str(current_path))
+            self.logger.info(f"   ✓ Moved to merged.xml.gz")
+        else:
+            self.logger.info(f"   File already named merged.xml.gz, keeping as current")
         
-        # Save metadata for current file
+        # STEP 3: Verify current file exists and save metadata
+        if not current_path.exists():
+            raise FileNotFoundError(f"Current file {current_path} was not created!")
+        
         try:
             if self.db:
-                archive_data = self.db.get_archive(filename)
-                if archive_data:
-                    self.db.save_archive(
-                        "merged.xml.gz",
-                        archive_data.get('channels'),
-                        archive_data.get('programs'),
-                        0,
-                        current_path.stat().st_size
-                    )
-                    self.logger.info(f"Current file metadata saved")
+                file_size = current_path.stat().st_size
+                self.db.save_archive(
+                    "merged.xml.gz",
+                    channels,
+                    programs,
+                    0,
+                    file_size
+                )
+                self.logger.info(f"✓ Current file metadata saved: {channels}ch, {programs}prog, {file_size/1024:.1f}KB")
         except Exception as e:
-            self.logger.warning(f"Could not save metadata for current file: {e}")
+            self.logger.warning(f"⚠️  Could not save current metadata: {e}")
         
-        self.logger.info(f"✓ Merge saved successfully")
+        self.logger.info(f"✅ Merge saved successfully")
         
         return {
             "status": "success",
             "message": "Merge saved successfully",
-            "current_file": "merged.xml.gz"
+            "current_file": "merged.xml.gz",
+            "channels": channels,
+            "programs": programs,
+            "archived": True
+        }
+
+
+    def _cleanup_old_archives(self, retention_days: int) -> Dict[str, Any]:
+        """Delete archives older than retention policy
+        
+        Args:
+            retention_days: Keep archives for this many days
+        
+        Returns:
+            Cleanup statistics
+        """
+        from datetime import datetime, timedelta
+        
+        if retention_days <= 0:
+            self.logger.info(f"Cleanup disabled (retention_days = {retention_days})")
+            return {"deleted": 0, "freed_bytes": 0, "freed_mb": 0}
+        
+        deleted_count = 0
+        freed_bytes = 0
+        cutoff_date = datetime.now() - timedelta(days=retention_days)
+        
+        self.logger.info(f"Cleanup: Removing archives older than {retention_days} days")
+        self.logger.info(f"  Cutoff date: {cutoff_date.date()}")
+        
+        try:
+            archive_files = sorted(self.config.archive_dir.glob("*.xml.gz.*"))
+            
+            if not archive_files:
+                self.logger.info(f"  No timestamped archives found")
+                return {"deleted": 0, "freed_bytes": 0, "freed_mb": 0}
+            
+            self.logger.info(f"  Found {len(archive_files)} archive file(s)")
+            
+            for file in archive_files:
+                try:
+                    file_mtime = datetime.fromtimestamp(file.stat().st_mtime)
+                    file_age = (datetime.now() - file_mtime).days
+                    
+                    if file_mtime < cutoff_date:
+                        size = file.stat().st_size
+                        file.unlink()
+                        deleted_count += 1
+                        freed_bytes += size
+                        self.logger.info(f"  ✓ Deleted: {file.name} ({file_age}d old, {size/(1024**2):.2f}MB)")
+                    else:
+                        self.logger.info(f"  • Keep: {file.name} ({file_age}d old)")
+                
+                except Exception as e:
+                    self.logger.error(f"  ✗ Error processing {file.name}: {e}")
+            
+            freed_mb = round(freed_bytes / (1024**2), 2)
+            self.logger.info(f"  Summary: {deleted_count} deleted, {freed_mb}MB freed")
+            
+        except Exception as e:
+            self.logger.error(f"Cleanup failed: {e}", exc_info=True)
+        
+        return {
+            "deleted": deleted_count,
+            "freed_bytes": freed_bytes,
+            "freed_mb": freed_mb
         }

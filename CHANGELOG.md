@@ -2,6 +2,23 @@
 
 All notable changes to EPG Merge Application will be documented in this file.
 
+## [0.3.1] - 2025-10-28
+
+### Added
+- Proper archive versioning with unique temporary merge filenames
+- Archive metadata persistence (channels, programs, size, timestamp)
+- Automatic archiving of previous merge when saving new merge as current
+
+### Fixed
+- Merge overwrites issue - now creates unique temp files instead
+- "Save as Current" now properly archives previous version with timestamp
+- Database schema - archives table creation on initialization
+
+### Changed
+- Merge flow: execute creates temp file → user reviews → "Save as Current" promotes it
+- Archive filenames now timestamped (merged.xml.gz.YYYYMMDD_HHMMSS)
+- Improved logging during merge and archive operations
+
 ## [0.3.0] - 2025-10-27
 
 ### Added

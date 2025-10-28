@@ -1,31 +1,26 @@
 {
   "name": "epg-merge-app",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "homepage": "/",
+  "scripts": {
+    "prestart": "node ../scripts/sync-version.js",
+    "start": "react-scripts start",
+    "prebuild": "node ../scripts/sync-version.js",
+    "build": "react-scripts build"
+  },
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "axios": "^1.6.0",
     "lucide-react": "^0.263.1"
   },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build"
-  },
   "eslintConfig": {
     "extends": "react-app"
   },
   "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version"
-    ]
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version"]
   },
   "devDependencies": {
     "react-scripts": "5.0.1"

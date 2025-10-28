@@ -115,7 +115,9 @@ build_react() {
     cd "${FRONTEND_DIR}"
     
     # Set production environment
-    export REACT_APP_VERSION="${APP_VERSION}"
+    BACKEND_VERSION=$(grep "__version__" "${APP_DIR}/backend/version.py" | cut -d'"' -f2)
+    export REACT_APP_VERSION="${BACKEND_VERSION}"
+    echo "Building with version: ${REACT_APP_VERSION}"
     export NODE_ENV=production
     
     # Run build

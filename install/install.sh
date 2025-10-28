@@ -8,7 +8,13 @@ set -e
 # ============================================================================
 # VERSION CONTROL
 # ============================================================================
-APP_VERSION="0.3.0"
+# Get version from backend
+APP_VERSION=$(grep "__version__" "${SCRIPT_DIR}/../backend/version.py" | cut -d'"' -f2)
+if [ -z "$APP_VERSION" ]; then
+    echo "Error: Could not determine version from backend/version.py"
+    exit 1
+fi
+echo "Installing version: ${APP_VERSION}"
 MIN_UPGRADE_VERSION="0.1"
 VERSION_FILE="/opt/epg-merge-app/.version"
 
