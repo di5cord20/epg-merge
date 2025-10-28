@@ -2,6 +2,40 @@
 
 All notable changes to EPG Merge Application will be documented in this file.
 
+## [0.3.3] - 2025-10-28
+
+### Added
+- Days Included column in Archives table showing timeframe (3, 7, 14)
+- MergePage displays current timeframe and feed type being used
+
+### Fixed
+- Timeframe now properly used in merge execution (was always defaulting to 3 days)
+- Timeframe selection no longer resets when navigating between pages
+
+### Changed
+- SourcesPage shows current preferences info box
+- MergePage info box displays active timeframe and feed type
+- Archives table column order: Programs → Days Included → Days Left
+
+## [0.3.2] - 2025-10-28
+
+### Added
+- Days Left column in Archives table showing remaining days of programming
+- Color-coded urgency indicators for Days Left:
+  - Red (0 days) - expired
+  - Yellow (1 day) - urgent
+  - Orange (2 days) - warning
+  - Green (3+ days) - safe
+- Days Left column is sortable
+- Enhanced legend explaining color scheme
+
+### Changed
+- Archives table layout improved with new Days Left column after Programs
+
+### Technical
+- Enhanced `calculateDaysLeft()` function for accurate date calculations
+- Days left calculation based on `created_at + days_included - today`
+
 ## [0.3.1] - 2025-10-28
 
 ### Added

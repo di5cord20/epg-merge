@@ -339,6 +339,19 @@ const ArchivesPage = () => {
                     Programs {getSortIndicator('programs')}
                   </th>
                   <th
+                    onClick={() => handleSort('days_included')}
+                    style={{
+                      padding: '12px',
+                      textAlign: 'center',
+                      fontWeight: '600',
+                      color: '#cbd5e1',
+                      cursor: 'pointer',
+                      userSelect: 'none'
+                    }}
+                  >
+                    Days Included {getSortIndicator('days_included')}
+                  </th>
+                  <th
                     onClick={() => handleSort('days_left')}
                     style={{
                       padding: '12px',
@@ -412,6 +425,9 @@ const ArchivesPage = () => {
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center', color: '#cbd5e1' }}>
                       {archive.programs !== undefined && archive.programs !== null ? archive.programs : '—'}
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center', color: '#cbd5e1' }}>
+                      {archive.days_included !== undefined && archive.days_included !== null ? archive.days_included : '—'}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
                       <div style={{

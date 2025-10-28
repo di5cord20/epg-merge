@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Terminal } from '../components/Terminal';
 import { ProgressBar } from '../components/ProgressBar';
 import { X } from 'lucide-react';
@@ -10,9 +11,14 @@ import { X } from 'lucide-react';
  * - Real-time progress tracking
  * - Terminal log display with verbose popup
  * - Session persistence (survive page navigation)
+ * - Uses saved timeframe from SourcesPage
  * - Archive save and cleanup
  */
 export const MergePage = ({ selectedSources }) => {
+  // Retrieve saved timeframe and feedType from localStorage
+  const [timeframe] = useLocalStorage('selectedTimeframe', '3');
+  const [feedType] = useLocalStorage('selectedFeedType', 'iptv');
+  
   // Session-persisted state (survives page navigation)
   const [logs, setLogs] = useState(() => {
     const saved = sessionStorage.getItem('mergeLog');
@@ -111,6 +117,8 @@ export const MergePage = ({ selectedSources }) => {
     try {
       addLog(`📁 Sources: ${selectedSources.length}`);
       addLog(`📺 Channels: ${channels.length}`);
+      addLog(`📅 Timeframe: ${timeframe} days`);
+      addLog(`📡 Feed Type: ${feedType.toUpperCase()}`);
       addLog('');
       addLog('⏳ Executing merge...');
       addLog('');
@@ -128,14 +136,14 @@ export const MergePage = ({ selectedSources }) => {
         });
       }, 800);
       
-      // Make the merge request
+      // Make the merge request with saved timeframe and feedType
       const data = await call('/api/merge/execute', {
         method: 'POST',
         body: JSON.stringify({
           sources: selectedSources,
           channels: channels,
-          timeframe: '3',
-          feed_type: 'iptv'
+          timeframe: timeframe,
+          feed_type: feedType
         })
       });
       
@@ -308,9 +316,9 @@ export const MergePage = ({ selectedSources }) => {
             color: '#94a3b8'
           }}
         >
-          ℹ️ Be patient. Merge may take some time to complete depending on number and size of
-          source files and number of channels selected. Use "Verbose Log" button to see
-          detailed backend information.
+          ℹ️ Using <strong style={{ color: '#cbd5e1' }}>{timeframe} days</strong> timeframe and <strong style={{ color: '#cbd5e1' }}>{feedType.toUpperCase()}</strong> feed type from Sources page.
+          Be patient. Merge may take some time to complete depending on number and size of source files and number of channels selected. 
+          Use "Verbose Log" button to see detailed backend information.
         </div>
 
         {/* Merge Complete Actions */}

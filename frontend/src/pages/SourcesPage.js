@@ -4,16 +4,20 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import { DualListSelector } from '../components/DualListSelector';
 
 export const SourcesPage = ({ onSave }) => {
-  const [availableSources, setAvailableSources] = useState([]);
+  // Persist timeframe and feedType to localStorage
+  const [timeframe, setTimeframe] = useLocalStorage('selectedTimeframe', '3');
+  const [feedType, setFeedType] = useLocalStorage('selectedFeedType', 'iptv');
   const [selectedSources, setSelectedSources] = useLocalStorage('selectedSources', []);
-  const [timeframe, setTimeframe] = useState('3');
-  const [feedType, setFeedType] = useState('iptv');
+  
+  const [availableSources, setAvailableSources] = useState([]);
   const { call, loading, error } = useApi();
   
+  // Notify parent component of selected sources
   useEffect(() => {
     onSave(selectedSources);
   }, [selectedSources, onSave]);
   
+  // Load sources whenever timeframe or feedType changes
   const loadSources = useCallback(async () => {
     try {
       const data = await call(
@@ -25,8 +29,10 @@ export const SourcesPage = ({ onSave }) => {
     }
   }, [timeframe, feedType, call]);
   
-  // Note: loadSources is NOT called automatically to avoid timeout on page load
-  // User must click "Refresh Files" button to load sources
+  // Load sources on component mount and when timeframe/feedType changes
+  useEffect(() => {
+    loadSources();
+  }, [loadSources]);
   
   const saveSources = async () => {
     try {
@@ -34,7 +40,17 @@ export const SourcesPage = ({ onSave }) => {
         method: 'POST',
         body: JSON.stringify({ sources: selectedSources })
       });
-      alert('Sources saved');
+      
+      // Also save timeframe and feedType to backend settings
+      await call('/api/settings/set', {
+        method: 'POST',
+        body: JSON.stringify({
+          selected_timeframe: timeframe,
+          selected_feed_type: feedType
+        })
+      });
+      
+      alert('Sources and preferences saved');
     } catch (err) {
       alert('Error saving sources: ' + err.message);
     }
@@ -121,6 +137,23 @@ export const SourcesPage = ({ onSave }) => {
           >
             💾 Save Sources
           </button>
+        </div>
+
+        {/* Info box showing current preferences */}
+        <div style={{
+          marginTop: '20px',
+          padding: '12px',
+          background: 'rgba(59, 130, 246, 0.1)',
+          border: '1px solid rgba(59, 130, 246, 0.3)',
+          borderRadius: '6px',
+          fontSize: '12px',
+          color: '#94a3b8'
+        }}>
+          <strong style={{ color: '#cbd5e1' }}>Current Preferences:</strong>
+          <div style={{ marginTop: '6px' }}>
+            Timeframe: <strong style={{ color: '#60a5fa' }}>{timeframe} days</strong> | 
+            Feed Type: <strong style={{ color: '#60a5fa' }}>{feedType.toUpperCase()}</strong>
+          </div>
         </div>
       </div>
     </div>
