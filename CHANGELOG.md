@@ -2,6 +2,11 @@
 
 All notable changes to EPG Merge Application will be documented in this file.
 
+# [0.3.34] - 2025-10-28
+
+### Fixed
+- Archives table - delete archived file button now works
+
 ## [0.3.3] - 2025-10-28
 
 ### Added

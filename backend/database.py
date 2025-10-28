@@ -203,6 +203,18 @@ class Database:
             self.logger.error(f"Error saving archive {filename}: {e}")
             raise
     
+    def delete_archive(self, filename: str) -> None:
+        """Delete archive metadata from database"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM archives WHERE filename = ?", (filename,))
+            conn.commit()
+            self.logger.info(f"Deleted archive metadata: {filename}")
+        except Exception as e:
+            self.logger.error(f"Error deleting archive {filename}: {e}")
+            raise
+
     def close(self) -> None:
         """Close database connection"""
         if self._connection:

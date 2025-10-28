@@ -423,6 +423,39 @@ async def cleanup_archives():
         logger.error(f"Error during cleanup: {e}")
         raise HTTPException(status_code=500, detail="Cleanup failed")
 
+@app.delete("/api/archives/delete/{filename}", tags=["Archives"])
+async def delete_archive(filename: str):
+    """Delete an archived file (cannot delete current merged.xml.gz)"""
+    try:
+        # Prevent deletion of current live file
+        if filename == "merged.xml.gz":
+            raise AppError("Cannot delete current live file", 400)
+        
+        file_path = archive_service.get_archive_path(filename)
+        
+        if not file_path.exists():
+            raise AppError("Archive not found", 404)
+        
+        # Delete the file
+        file_path.unlink()
+        logger.info(f"Deleted archive: {filename}")
+        
+        # Delete metadata from database if exists
+        if db:
+            try:
+                db.execute(f"DELETE FROM archives WHERE filename = ?", (filename,))
+            except Exception as e:
+                logger.warning(f"Could not delete archive metadata from DB: {e}")
+        
+        return {"status": "success", "message": f"Deleted {filename}"}
+    
+    except AppError as e:
+        logger.error(f"App error: {e.message}")
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    except Exception as e:
+        logger.error(f"Error deleting archive: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete archive")
+
 # ============================================================================
 # SETTINGS ENDPOINTS
 # ============================================================================
