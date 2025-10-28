@@ -388,6 +388,56 @@ curl http://10.96.70.113:9193/api/health | jq .version
 
 ---
 
+Recent Changes (v0.3.3)
+Timeframe Persistence ⭐
+
+Issue Fixed: Timeframe selection was not persisting across pages and merge always used 3 days
+Solution: Implemented localStorage persistence for timeframe and feedType
+Backend Integration: Timeframe and feedType saved to settings table
+MergePage: Now reads saved timeframe/feedType from localStorage and passes to API
+
+Archives Table Enhancement ⭐
+
+New Column: "Days Included" (shows 3, 7, or 14 day timeframe)
+Column Order: Filename → Created → Type → Size → Channels → Programs → Days Included → Days Left → Actions
+Styling: Matches Channels/Programs columns (center-aligned, sortable)
+
+Files Modified in v0.3.3
+
+frontend/src/pages/SourcesPage.js - Added localStorage persistence for timeframe/feedType
+frontend/src/pages/MergePage.js - Now retrieves and uses saved timeframe/feedType
+frontend/src/pages/ArchivesPage.js - Added Days Included column, enhanced Days Left calculation
+backend/version.py - Updated to 0.3.3
+CHANGELOG.md - Documented all changes
+
+
+Current Version
+0.3.3 (as of Oct 28, 2025)
+What Works ✅
+
+Days Left column with color-coded urgency (red/yellow/orange/green)
+Timeframe selection persists across page navigation
+Merge uses correct timeframe from user selection
+Days Included column shows timeframe in Archives table
+Both columns sortable
+All settings saved to backend and localStorage
+
+Known Limitations
+
+Archive retention cleanup not yet implemented
+Scheduled merges not yet active
+Discord notifications not yet integrated
+
+
+Next Potential Features
+
+Archive retention automatic cleanup based on policy setting
+Download/Upload settings export-import
+Merge scheduling with cron
+Real-time log streaming (SSE/WebSocket)
+Backend implementation of scheduled merge execution
+
+
 **Last Updated:** October 28, 2025
 **Version:** v0.3.1 (Archive Versioning + Version Management)
 **Status:** Production Ready with Full Archive Support
