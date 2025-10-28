@@ -11,13 +11,66 @@ const ArchivesPage = () => {
   const [sortOrder, setSortOrder] = useState('desc');
   const { call } = useApi();
 
-  // Wrap fetchArchives in useCallback to memoize it
+  // ========== HELPER FUNCTIONS ==========
+
+  /**
+   * Get color for days left based on value
+   * 0 days = Red, 1 day = Yellow, 2 days = Orange, 3+ = Green
+   */
+  const getDaysLeftColor = (days) => {
+    if (days === undefined || days === null) return '#94a3b8'; // gray
+    if (days === 0) return '#ff4444';     // red (expired)
+    if (days === 1) return '#ffaa00';     // yellow (urgent)
+    if (days === 2) return '#ff8800';     // orange (warning)
+    return '#10b981';                      // green (safe)
+  };
+
+  /**
+   * Calculate days left until programming expires
+   * Assumes programs span consecutive days starting from created_at
+   * Formula: created_at + days_included - today = days_left
+   */
+  const calculateDaysLeft = (createdAt, daysIncluded) => {
+    if (!createdAt || daysIncluded === undefined || daysIncluded === null) {
+      return null;
+    }
+
+    try {
+      const created = new Date(createdAt);
+      const today = new Date();
+      
+      // Set both to midnight for consistent date comparison
+      created.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0);
+      
+      // Calculate last day of programming
+      const lastDay = new Date(created);
+      lastDay.setDate(lastDay.getDate() + daysIncluded - 1);
+      
+      // Calculate days remaining
+      const timeDiff = lastDay - today;
+      const daysLeft = Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
+      
+      return daysLeft;
+    } catch (err) {
+      console.error('Error calculating days left:', err);
+      return null;
+    }
+  };
+
   const fetchArchives = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await call('/api/archives/list');
-      setArchives(data.archives || []);
+      
+      // Add calculated days_left to each archive
+      const archivesWithDaysLeft = (data.archives || []).map(archive => ({
+        ...archive,
+        days_left: calculateDaysLeft(archive.created_at, archive.days_included)
+      }));
+      
+      setArchives(archivesWithDaysLeft);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -108,6 +161,14 @@ const ArchivesPage = () => {
       case 'programs':
         compareValue = (b.programs || 0) - (a.programs || 0);
         break;
+      case 'days_included':
+        compareValue = (b.days_included || 0) - (a.days_included || 0);
+        break;
+      case 'days_left':
+        const daysLeftA = a.days_left || -1;
+        const daysLeftB = b.days_left || -1;
+        compareValue = daysLeftB - daysLeftA;
+        break;
       default:
         compareValue = 0;
     }
@@ -151,7 +212,6 @@ const ArchivesPage = () => {
               gap: '8px',
               padding: '10px 16px',
               background: '#3b82f6',
-              hover: '#2563eb',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
@@ -278,6 +338,19 @@ const ArchivesPage = () => {
                   >
                     Programs {getSortIndicator('programs')}
                   </th>
+                  <th
+                    onClick={() => handleSort('days_left')}
+                    style={{
+                      padding: '12px',
+                      textAlign: 'center',
+                      fontWeight: '600',
+                      color: '#cbd5e1',
+                      cursor: 'pointer',
+                      userSelect: 'none'
+                    }}
+                  >
+                    Days Left {getSortIndicator('days_left')}
+                  </th>
                   <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#cbd5e1' }}>
                     Actions
                   </th>
@@ -341,6 +414,17 @@ const ArchivesPage = () => {
                       {archive.programs !== undefined && archive.programs !== null ? archive.programs : '—'}
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <div style={{
+                        color: getDaysLeftColor(archive.days_left),
+                        fontWeight: '700',
+                        fontSize: '14px'
+                      }}>
+                        {archive.days_left !== undefined && archive.days_left !== null 
+                          ? `${archive.days_left}` 
+                          : '—'}
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
                         <button
                           onClick={() => handleDownload(archive.filename)}
@@ -387,7 +471,7 @@ const ArchivesPage = () => {
           </div>
         )}
 
-        {/* Legend */}
+        {/* Legend/Info Box */}
         {!loading && archives.length > 0 && (
           <div style={{
             marginTop: '20px',
@@ -396,7 +480,8 @@ const ArchivesPage = () => {
             display: 'flex',
             gap: '30px',
             fontSize: '13px',
-            color: '#94a3b8'
+            color: '#94a3b8',
+            flexWrap: 'wrap'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span
@@ -408,7 +493,7 @@ const ArchivesPage = () => {
                   borderRadius: '50%'
                 }}
               />
-              <span>Current live file</span>
+              <span>Current file</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span
@@ -423,6 +508,22 @@ const ArchivesPage = () => {
                 Archive
               </span>
               <span>Historical version</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#10b981', fontWeight: '700' }}>3+</span>
+              <span>Days left (green)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#ff8800', fontWeight: '700' }}>2</span>
+              <span>Days left (orange)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#ffaa00', fontWeight: '700' }}>1</span>
+              <span>Days left (yellow)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#ff4444', fontWeight: '700' }}>0</span>
+              <span>Days left (red/expired)</span>
             </div>
           </div>
         )}

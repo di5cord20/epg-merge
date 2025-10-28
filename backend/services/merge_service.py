@@ -1,6 +1,6 @@
 """
-EPG Merge - Merge Service
-Handles XML merging logic and file processing
+EPG Merge - Merge Service (v0.3.2)
+Handles XML merging logic with timeframe tracking for Days Included
 """
 
 import gzip
@@ -85,6 +85,9 @@ class MergeService(BaseService):
             # Phase 2: Merge XML with TEMPORARY filename
             result = await self._merge_xml_files(downloaded_files, channels, temp_filename)
             
+            # Add timeframe to result for storage
+            result['days_included'] = int(timeframe)
+            
             self.logger.info(f"")
             self.logger.info(f"PHASE 3: Final Summary")
             self.logger.info(f"=" * 60)
@@ -93,6 +96,7 @@ class MergeService(BaseService):
             self.logger.info(f"  Channels included: {result['channels_included']}")
             self.logger.info(f"  Programs included: {result['programs_included']}")
             self.logger.info(f"  File size: {result['file_size']}")
+            self.logger.info(f"  Days Included: {result['days_included']} days")
             self.logger.info(f"================== MERGE EXECUTION COMPLETE ==================")
             self.logger.info(f"")
             
@@ -322,6 +326,7 @@ class MergeService(BaseService):
                 - filename: Current merge filename to save as current
                 - channels: Number of channels
                 - programs: Number of programs
+                - days_included: Timeframe (3, 7, or 14 days)
         
         Returns:
             Status dictionary
@@ -332,6 +337,7 @@ class MergeService(BaseService):
         filename = data.get('filename', 'merged.xml.gz')
         channels = data.get('channels', 0)
         programs = data.get('programs', 0)
+        days_included = data.get('days_included', 0)
         
         # Source file (the newly merged file)
         merged_path = self.config.archive_dir / filename
@@ -370,7 +376,7 @@ class MergeService(BaseService):
                             archive_path.name,
                             archive_data.get('channels'),
                             archive_data.get('programs'),
-                            0,
+                            archive_data.get('days_included', 0),
                             archive_size
                         )
                         self.logger.info(f"   ✓ Archive metadata saved")
@@ -398,10 +404,10 @@ class MergeService(BaseService):
                     "merged.xml.gz",
                     channels,
                     programs,
-                    0,
+                    days_included,
                     file_size
                 )
-                self.logger.info(f"✓ Current file metadata saved: {channels}ch, {programs}prog, {file_size/1024:.1f}KB")
+                self.logger.info(f"✓ Current file metadata saved: {channels}ch, {programs}prog, {days_included}d, {file_size/1024:.1f}KB")
         except Exception as e:
             self.logger.warning(f"⚠️  Could not save current metadata: {e}")
         
@@ -413,6 +419,7 @@ class MergeService(BaseService):
             "current_file": "merged.xml.gz",
             "channels": channels,
             "programs": programs,
+            "days_included": days_included,
             "archived": True
         }
 

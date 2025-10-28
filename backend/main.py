@@ -311,7 +311,8 @@ async def execute_merge(data: dict):
             archive_service.save_archive_metadata(
                 result['filename'],
                 result['channels_included'],
-                result['programs_included']
+                result['programs_included'],
+                result.get('days_included', 0)
             )
         except Exception as e:
             logger.warning(f"Could not save archive metadata: {e}")
@@ -341,30 +342,19 @@ async def get_current_merge():
 
 @app.post("/api/merge/save", tags=["Merge"])
 async def save_merge(data: dict):
-    """Save current merge and archive previous version
-    
-    Args:
-        data: Dictionary with filename to save
-    
-    Returns:
-        Status message
-    """
+    """Save current merge and archive previous version"""
     try:
         result = merge_service.save_merge(data)
         logger.info(f"Merge saved: {result['current_file']}")
         
-        # Get the original filename to retrieve its metadata
-        original_filename = data.get('filename', 'merged.xml.gz')
-        
-        # Save metadata for the current file
+        # Save metadata for the current file with days_included
         try:
-            archive_data = db.get_archive(original_filename)
-            if archive_data:
-                archive_service.save_archive_metadata(
-                    'merged.xml.gz',
-                    archive_data.get('channels'),
-                    archive_data.get('programs')
-                )
+            archive_service.save_archive_metadata(
+                'merged.xml.gz',
+                result.get('channels'),
+                result.get('programs'),
+                result.get('days_included', 0)
+            )
         except Exception as e:
             logger.warning(f"Could not save metadata for current file: {e}")
         

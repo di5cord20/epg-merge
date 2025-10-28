@@ -3,11 +3,11 @@ EPG Merge Application - Version Information
 Single source of truth for version across all components
 """
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 __release_date__ = "2025-10-28"
 __author__ = "di5cord20"
 __license__ = "MIT"
-__description__ = "Production-grade TV feed merger with archive cleanup and enhanced UI"
+__description__ = "TV feed merger with archive cleanup and enhanced UI"
 
 # Version components
 VERSION_MAJOR = 0

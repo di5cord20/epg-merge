@@ -64,12 +64,14 @@ class ArchiveService(BaseService):
         # Use database values if available, otherwise N/A
         channels = db_data.get('channels') if db_data else None
         programs = db_data.get('programs') if db_data else None
+        days_included = db_data.get('days_included') if db_data else None
         
         return {
             "filename": path.name,
             "created_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
             "channels": channels if channels is not None else None,
             "programs": programs if programs is not None else None,
+            "days_included": days_included if days_included is not None else None,
             "size_bytes": size_bytes,
             "is_current": is_current
         }
@@ -92,21 +94,22 @@ class ArchiveService(BaseService):
         
         return self.config.archive_dir / filename
     
-    def save_archive_metadata(self, filename: str, channels: int, programs: int) -> None:
+    def save_archive_metadata(self, filename: str, channels: int, programs: int, days_included: int = 0) -> None:
         """Save archive metadata to database
         
         Args:
             filename: Archive filename
             channels: Number of channels
             programs: Number of programs
+            days_included: Number of days included (timeframe)
         """
         if self.db:
             try:
                 file_path = self.config.archive_dir / filename
                 if file_path.exists():
                     size_bytes = file_path.stat().st_size
-                    self.db.save_archive(filename, channels, programs, 0, size_bytes)
-                    self.logger.info(f"Saved metadata for {filename}: {channels} channels, {programs} programs")
+                    self.db.save_archive(filename, channels, programs, days_included, size_bytes)
+                    self.logger.info(f"Saved metadata for {filename}: {channels} channels, {programs} programs, {days_included} days")
             except Exception as e:
                 self.logger.error(f"Error saving archive metadata: {e}")
 

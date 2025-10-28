@@ -39,6 +39,11 @@ export const MergePage = ({ selectedSources }) => {
     return saved ? parseInt(saved) : 0;
   });
 
+  const [mergedDaysIncluded, setMergedDaysIncluded] = useState(() => {
+    const saved = sessionStorage.getItem('mergedDaysIncluded');
+    return saved ? parseInt(saved) : 0;
+  });
+
   const [mergedSize, setMergedSize] = useState(() => {
     const saved = sessionStorage.getItem('mergedSize');
     return saved || '';
@@ -73,22 +78,25 @@ export const MergePage = ({ selectedSources }) => {
   }, [mergedPrograms]);
 
   useEffect(() => {
+    sessionStorage.setItem('mergedDaysIncluded', mergedDaysIncluded.toString());
+  }, [mergedDaysIncluded]);
+
+  useEffect(() => {
     sessionStorage.setItem('mergedSize', mergedSize);
   }, [mergedSize]);
 
   const addLog = (msg) => {
     setLogs(prev => [...prev, msg]);
-    // Also add to verbose logs (backend logs)
     setVerboseLogs(prev => [...prev, msg]);
   };
 
   const startMerge = async () => {
-  if (selectedSources.length === 0) {
-    alert('Please select sources first');
-    return;
-  }
-  
-  const channels = JSON.parse(localStorage.getItem('selectedChannels') || '[]');
+    if (selectedSources.length === 0) {
+      alert('Please select sources first');
+      return;
+    }
+    
+    const channels = JSON.parse(localStorage.getItem('selectedChannels') || '[]');
     if (channels.length === 0) {
       alert('Please select channels first');
       return;
@@ -120,15 +128,14 @@ export const MergePage = ({ selectedSources }) => {
         });
       }, 800);
       
-      // Make the merge request - DON'T send output_filename, let backend generate temp filename
+      // Make the merge request
       const data = await call('/api/merge/execute', {
         method: 'POST',
         body: JSON.stringify({
           sources: selectedSources,
           channels: channels,
-          timeframe: '3',        // Use default or get from settings
-          feed_type: 'iptv'      // Use default or get from settings
-          // DO NOT include output_filename - backend generates unique temp name
+          timeframe: '3',
+          feed_type: 'iptv'
         })
       });
       
@@ -145,6 +152,7 @@ export const MergePage = ({ selectedSources }) => {
       addLog(`📦 Filename: ${data.filename}`);
       addLog(`📊 Channels: ${data.channels_included}`);
       addLog(`📄 Programs: ${data.programs_included}`);
+      addLog(`📅 Days: ${data.days_included}`);
       addLog(`📏 Size: ${data.file_size}`);
       addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       addLog('Next: Download or Save as Current →');
@@ -152,6 +160,8 @@ export const MergePage = ({ selectedSources }) => {
       setMergedFilename(data.filename);
       setMergedChannels(data.channels_included);
       setMergedPrograms(data.programs_included);
+      setMergedDaysIncluded(data.days_included);
+      setMergedSize(data.file_size);
       setProgress(100);
       setMergeComplete(true);
     } catch (err) {
@@ -206,13 +216,13 @@ export const MergePage = ({ selectedSources }) => {
       addLog('');
       addLog('💾 Saving as current...');
 
-      // IMPORTANT: Pass merge metadata so save_merge can archive previous version correctly
       await call('/api/merge/save', {
         method: 'POST',
         body: JSON.stringify({
           filename: mergedFilename,
           channels: mergedChannels,
           programs: mergedPrograms,
+          days_included: mergedDaysIncluded,
           size: mergedSize
         })
       });
@@ -234,11 +244,13 @@ export const MergePage = ({ selectedSources }) => {
     setMergedFilename('');
     setMergedChannels(0);
     setMergedPrograms(0);
+    setMergedDaysIncluded(0);
     setMergedSize('');
     sessionStorage.removeItem('mergeComplete');
     sessionStorage.removeItem('mergedFilename');
     sessionStorage.removeItem('mergedChannels');
     sessionStorage.removeItem('mergedPrograms');
+    sessionStorage.removeItem('mergedDaysIncluded');
     sessionStorage.removeItem('mergedSize');
   };
 
@@ -340,6 +352,7 @@ export const MergePage = ({ selectedSources }) => {
                 • Channels: {mergedChannels}
               </div>
               <div style={{ color: '#cbd5e1' }}>• Programs: {mergedPrograms}</div>
+              <div style={{ color: '#cbd5e1' }}>• Days included: {mergedDaysIncluded}</div>
               <div style={{ color: '#cbd5e1' }}>• Size: {mergedSize}</div>
               <div style={{ marginTop: '8px', fontSize: '12px', color: '#94a3b8' }}>
                 Download to get the file, or click "Save as Current" to make it live
