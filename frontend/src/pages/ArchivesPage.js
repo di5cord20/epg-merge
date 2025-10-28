@@ -296,9 +296,6 @@ const ArchivesPage = () => {
                   >
                     Created {getSortIndicator('date')}
                   </th>
-                  <th style={{ padding: '12px', textAlign: 'center', fontWeight: '600', color: '#cbd5e1' }}>
-                    Type
-                  </th>
                   <th
                     onClick={() => handleSort('size')}
                     style={{
@@ -383,7 +380,7 @@ const ArchivesPage = () => {
                   >
                     <td style={{ padding: '12px', color: '#e2e8f0', fontFamily: 'monospace', fontSize: '13px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {archive.is_current && (
+                        {archive.is_current ? (
                           <span
                             style={{
                               display: 'inline-block',
@@ -395,27 +392,23 @@ const ArchivesPage = () => {
                             }}
                             title="Current file"
                           />
+                        ) : (
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              fontSize: '14px',
+                              flexShrink: 0
+                            }}
+                            title="Archive file"
+                          >
+                            📦
+                          </span>
                         )}
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{archive.filename}</span>
                       </div>
                     </td>
                     <td style={{ padding: '12px', color: '#cbd5e1', whiteSpace: 'nowrap' }}>
                       {formatDate(archive.created_at)}
-                    </td>
-                    <td style={{ padding: '12px', textAlign: 'center' }}>
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          background: archive.is_current ? 'rgba(16, 185, 129, 0.2)' : 'rgba(100, 116, 139, 0.2)',
-                          color: archive.is_current ? '#86efac' : '#cbd5e1'
-                        }}
-                      >
-                        {archive.is_current ? '✓ Current' : '📦 Archive'}
-                      </span>
                     </td>
                     <td style={{ padding: '12px', textAlign: 'right', color: '#cbd5e1', fontFamily: 'monospace' }}>
                       {formatSize(archive.size_bytes)}
@@ -486,64 +479,171 @@ const ArchivesPage = () => {
             </table>
           </div>
         )}
+      </div>
 
-        {/* Legend/Info Box */}
-        {!loading && archives.length > 0 && (
-          <div style={{
-            marginTop: '20px',
-            paddingTop: '15px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-            display: 'flex',
-            gap: '30px',
-            fontSize: '13px',
-            color: '#94a3b8',
-            flexWrap: 'wrap'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span
-                style={{
-                  display: 'inline-block',
-                  width: '8px',
-                  height: '8px',
-                  background: '#10b981',
-                  borderRadius: '50%'
-                }}
-              />
-              <span>Current file</span>
+      {/* Legend & Guide Section - Separate from Archives Table */}
+      {!loading && archives.length > 0 && (
+        <div className="section">
+          <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', fontWeight: '600', color: '#cbd5e1' }}>
+            📋 Archives Guide
+          </h3>
+
+          {/* File Status Section */}
+          <div style={{ marginBottom: '25px' }}>
+            <div style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              File Status
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span
-                style={{
-                  display: 'inline-block',
-                  padding: '2px 6px',
-                  background: 'rgba(100, 116, 139, 0.2)',
-                  borderRadius: '3px',
-                  fontSize: '11px'
-                }}
-              >
-                Archive
-              </span>
-              <span>Historical version</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ color: '#10b981', fontWeight: '700' }}>3+</span>
-              <span>Days left (green)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ color: '#ff8800', fontWeight: '700' }}>2</span>
-              <span>Days left (orange)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ color: '#ffaa00', fontWeight: '700' }}>1</span>
-              <span>Days left (yellow)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ color: '#ff4444', fontWeight: '700' }}>0</span>
-              <span>Days left (red/expired)</span>
+            <div style={{ display: 'flex', gap: '30px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#cbd5e1' }}>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: '10px',
+                    height: '10px',
+                    background: '#10b981',
+                    borderRadius: '50%',
+                    flexShrink: 0
+                  }}
+                />
+                <div>
+                  <strong style={{ color: '#86efac' }}>Current</strong>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>Live merged file being used by the system</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#cbd5e1' }}>
+                <span style={{ fontSize: '16px', flexShrink: 0 }}>📦</span>
+                <div>
+                  <strong style={{ color: '#cbd5e1' }}>Archive</strong>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>Historical version (read-only, can be deleted)</div>
+                </div>
+              </div>
             </div>
           </div>
-        )}
-      </div>
+
+          {/* Columns Section */}
+          <div style={{ marginBottom: '25px' }}>
+            <div style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Table Columns
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+              <div>
+                <strong style={{ color: '#60a5fa', fontSize: '13px' }}>Filename</strong>
+                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>File name with creation timestamp</div>
+              </div>
+              <div>
+                <strong style={{ color: '#60a5fa', fontSize: '13px' }}>Created</strong>
+                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Date and time file was created</div>
+              </div>
+              <div>
+                <strong style={{ color: '#60a5fa', fontSize: '13px' }}>Size</strong>
+                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Compressed file size in MB</div>
+              </div>
+              <div>
+                <strong style={{ color: '#60a5fa', fontSize: '13px' }}>Channels</strong>
+                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Number of TV channels included</div>
+              </div>
+              <div>
+                <strong style={{ color: '#60a5fa', fontSize: '13px' }}>Programs</strong>
+                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Total program listings in file</div>
+              </div>
+              <div>
+                <strong style={{ color: '#60a5fa', fontSize: '13px' }}>Days Included</strong>
+                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Timeframe (3, 7, or 14 days)</div>
+              </div>
+              <div>
+                <strong style={{ color: '#60a5fa', fontSize: '13px' }}>Days Left</strong>
+                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Remaining days of programming data</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Days Left Color Legend */}
+          <div style={{ marginBottom: '25px' }}>
+            <div style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Days Left - Urgency Indicator
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px' }}>
+                <span style={{ color: '#10b981', fontWeight: '700', fontSize: '16px', minWidth: '30px' }}>3+</span>
+                <div>
+                  <div style={{ color: '#cbd5e1' }}>Safe</div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>Plenty of time remaining</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px' }}>
+                <span style={{ color: '#ff8800', fontWeight: '700', fontSize: '16px', minWidth: '30px' }}>2</span>
+                <div>
+                  <div style={{ color: '#cbd5e1' }}>Warning</div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>Getting close to expiring</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px' }}>
+                <span style={{ color: '#ffaa00', fontWeight: '700', fontSize: '16px', minWidth: '30px' }}>1</span>
+                <div>
+                  <div style={{ color: '#cbd5e1' }}>Urgent</div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>Last day of data</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px' }}>
+                <span style={{ color: '#ff4444', fontWeight: '700', fontSize: '16px', minWidth: '30px' }}>0</span>
+                <div>
+                  <div style={{ color: '#cbd5e1' }}>Expired</div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>No programming data left</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions Section */}
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Action Buttons
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '36px',
+                  height: '36px',
+                  background: 'rgba(59, 130, 246, 0.2)',
+                  color: '#60a5fa',
+                  borderRadius: '6px',
+                  flexShrink: 0,
+                  fontWeight: '600'
+                }}>
+                  ⬇️
+                </span>
+                <div>
+                  <strong style={{ color: '#60a5fa', fontSize: '13px' }}>Download</strong>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Save the archive file to your computer as .gz format</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '36px',
+                  height: '36px',
+                  background: 'rgba(239, 68, 68, 0.2)',
+                  color: '#f87171',
+                  borderRadius: '6px',
+                  flexShrink: 0,
+                  fontWeight: '600'
+                }}>
+                  🗑️
+                </span>
+                <div>
+                  <strong style={{ color: '#f87171', fontSize: '13px' }}>Delete</strong>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Permanently remove archive file (not available for current file)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

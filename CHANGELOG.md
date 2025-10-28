@@ -2,6 +2,12 @@
 
 All notable changes to EPG Merge Application will be documented in this file.
 
+## [0.3.5] - 2025-10-28
+
+### Changed
+- Archives table: removed Type column and moved icon indicator beside filename
+- Archives page: added legend under table
+  
 # [0.3.34] - 2025-10-28
 
 ### Fixed
