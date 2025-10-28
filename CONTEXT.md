@@ -1,13 +1,13 @@
-# EPG Merge App v0.3.0 - Context Bootstrap
+# EPG Merge App v0.3.1 - Context Bootstrap
 
 ## Project Overview
 
-**EPG Merge Application** is a production-grade TV feed merger that combines multiple XMLTV EPG (Electronic Program Guide) files from share.jesmann.com, filters them by selected channels, and produces merged XML files.
+**EPG Merge Application** is a production-grade TV feed merger that combines multiple XMLTV EPG (Electronic Program Guide) files from share.jesmann.com, filters them by selected channels, and produces merged XML files with archive versioning.
 
-**Current Version:** v0.3.0 (Modular Architecture with Smart Caching)
+**Current Version:** v0.3.1 (Archive Versioning & Version Management)
 **Repository:** https://github.com/di5cord20/epg-merge
 **License:** MIT
-**Status:** Operational and tested locally
+**Status:** Fully operational with proper archive management
 
 ---
 
@@ -24,39 +24,41 @@
 - Load channels from selected sources
 - Dual-list interface for channel management
 - Search and filter channels
-- Export channels to JSON backup
-- Import previously backed-up channels
+- Export/import channels as JSON backups
 
 ### 3. **XML Merge with Real-Time Logging**
 - Merge selected sources with channel filtering
 - Real-time merge logging with detailed cache information
 - Progress tracking (0-100%)
 - Download merged files
-- Archive previous versions automatically
-- Detailed per-file logging: cache hit/miss/stale decisions
+- Three-phase logging: Download → Merge → Summary
+- Detailed per-file logging: Cache HIT, MISS, STALE decisions
 
-### 4. **Archives Management**
-- List current and historical merged files
-- Download any archived version
-- Delete archived files
-- Sort by filename, date, or size
-- Display channels and programs counts (persisted to database)
+### 4. **Archive Management with Versioning** ⭐ NEW in v0.3.1
+- **Unique temporary filenames**: Each merge creates `merged_YYYYMMDD_HHMMSS.xml.gz`
+- **"Save as Current" workflow**: Archives previous version with timestamp before promoting new merge
+- Archive naming: `merged.xml.gz` (current) + `merged.xml.gz.YYYYMMDD_HHMMSS` (versioned archives)
+- Archive metadata persisted (channels, programs, size, timestamp)
+- Orphaned temp file cleanup available
+- List, download, delete any archived version
+- Sortable archive table (filename, date, type, size, metadata, actions)
 - Current file marked with green indicator
 
 ### 5. **Smart Caching System**
 - HTTP HEAD requests to check if remote files changed
 - Compare file sizes to detect updates
 - Automatic cache management (24-hour validation)
-- Detailed logging: Cache HIT, Cache MISS, Cache STALE
+- Detailed logging for cache decisions
 - Caches stored in `/config/epg_cache/`
 
-### 6. **Settings** (UI Complete, backend partially complete)
+### 6. **Settings Management** (UI Complete, Backend Partial)
 - Configure output filename
 - Set merge schedule (daily/weekly)
 - Set merge time (UTC)
 - Download/merge timeouts
 - Channel drop threshold
 - Archive retention policy
+- Discord webhook support (configured, not yet executed)
 
 ---
 
@@ -64,7 +66,7 @@
 
 ### Backend
 - **Framework:** FastAPI (Python 3.12+)
-- **Database:** SQLite
+- **Database:** SQLite with archives table
 - **Port:** 9193
 - **Deployment:** Systemd service (Debian/Ubuntu)
 - **Key Libraries:** httpx, lxml, croniter
@@ -72,108 +74,67 @@
 ### Frontend
 - **Framework:** React 18
 - **State Management:** React Hooks + localStorage
-- **Build:** npm/webpack
+- **Build:** npm/webpack (CI/CD via build.sh)
 - **UI Libraries:** lucide-react for icons
-- **Key Dependencies:** axios (optional, using fetch)
+- **Key Dependencies:** fetch API, no external HTTP client
 
 ### Infrastructure
-- **OS:** Debian 13 (Proxmox LXC container)
-- **IP Address:** 10.96.70.113 (production) / localhost:3001 (local dev)
+- **OS:** Debian 13 (Proxmox LXC container for production)
+- **Local Dev:** Ubuntu/WSL (tested on Ubuntu 22.04)
 - **Backend Port:** 9193
-- **Frontend Port:** 3001 (dev)
+- **Frontend Dev Port:** 3001
 - **Data Locations:**
-  - App: `/opt/epg-merge-app/` (production) or `~/github/epg-merge/` (local)
-  - Config: `/config/` (production) or `config/` (local)
-  - Archives: `/config/archives/`
-  - Cache: `/config/epg_cache/`
-  - Database: `/config/app.db`
+  - App: `/opt/epg-merge-app/` (prod) or `~/github/epg-merge/` (local)
+  - Config: `/config/` (prod) or `config/` (local)
+  - Archives: `{CONFIG}/archives/`
+  - Cache: `{CONFIG}/epg_cache/`
+  - Database: `{CONFIG}/app.db`
 
 ---
 
-## Recent Improvements (Latest Session)
+## Version Management (NEW in v0.3.1) ⭐
 
-### Backend Enhancements
-- ✅ Smart cache validation using HTTP HEAD requests
-- ✅ Detailed logging in `_download_sources()` showing per-file cache decisions
-- ✅ Phase-based merge logging (Phase 1: Download, Phase 2: Merge, Phase 3: Summary)
-- ✅ Archive metadata persistence (channels/programs counts saved to database)
-- ✅ Fixed `save_merge()` to properly archive previous files with timestamps
+**Centralized version management** - single source of truth:
+- **Source**: `backend/version.py` (e.g., `__version__ = "0.3.1"`)
+- **Auto-synced to**: 6 files via build process and installation
+- **Files affected**:
+  - `backend/main.py` - API responses
+  - `frontend/package.json` - Build environment
+  - `frontend/src/components/Navbar.js` - UI display
+  - `install/install.sh` - Installation script
+  - `CONTEXT.md` - Documentation
+  - `CHANGELOG.md` - Release notes
 
-### Frontend Improvements
-- ✅ Archives page table with sortable columns (Filename, Created, Type, Size, Channels, Programs, Actions)
-- ✅ Proper download functionality matching Archives page
-- ✅ "Save as Current" button that keeps summary card visible
-- ✅ MergePage with real-time progress bar
-- ✅ Terminal log display showing merge phases and summary
-- ✅ Info box directing users to backend terminal for detailed logs
-- ✅ Fixed React Hook warnings (useCallback for fetchArchives)
-
-### Infrastructure Fixes
-- ✅ Updated `useApi` hook to use `process.env.REACT_APP_API_BASE`
-- ✅ Fixed relative API URLs to absolute URLs (http://localhost:9193)
-- ✅ Refactored `build.sh` to use actual source files instead of hardcoded App.js/App.css
-- ✅ Added lucide-react to package.json dependencies
-
----
-
-## Known Issues & Limitations
-
-1. **Merge page logging:** Detailed cache logs appear in backend terminal only, not in UI terminal (by design - real-time streaming not yet implemented)
-2. **Settings page:** UI complete but backend execution not fully implemented (merge scheduling not active)
-3. **No scheduled merges:** Cron execution not yet implemented
-4. **No Discord notifications:** Webhook URL field exists but not implemented
-5. **Archive cleanup:** Manual only, no automatic retention-based deletion
+**To bump version**:
+1. Edit `backend/version.py` (only file to change)
+2. All other files auto-sync during build
+3. See `VERSION.md` for detailed strategy
 
 ---
 
 ## API Endpoints
 
-All endpoints at `http://localhost:9193/api/`:
+All at `http://localhost:9193/api/`:
 
-| Endpoint | Method | Status |
-|----------|--------|--------|
-| `/health` | GET | ✅ Working |
-| `/status` | GET | ✅ Working |
-| `/sources/list` | GET | ✅ Working |
-| `/sources/select` | POST | ✅ Working |
-| `/channels/from-sources` | GET | ✅ Working |
-| `/channels/selected` | GET | ✅ Working |
-| `/channels/select` | POST | ✅ Working |
-| `/channels/export` | POST | ✅ Working |
-| `/channels/import` | POST | ✅ Working |
-| `/merge/execute` | POST | ✅ Working |
-| `/merge/current` | GET | ✅ Working |
-| `/merge/save` | POST | ✅ Working |
-| `/archives/list` | GET | ✅ Working |
-| `/archives/download/{filename}` | GET | ✅ Working |
-| `/archives/delete/{filename}` | DELETE | ✅ Working |
-| `/settings/get` | GET | ✅ Working |
-| `/settings/set` | POST | ✅ Working |
-
----
-
-## Local Development Setup
-
-### Terminal 1 - Backend
-```bash
-cd backend
-source venv/bin/activate
-python -m uvicorn main:app --host 0.0.0.0 --port 9193 --reload
-```
-
-### Terminal 2 - Frontend
-```bash
-cd frontend
-npm install
-npm start
-# Opens http://localhost:3001
-```
-
-### Environment Variables
-**Frontend: `frontend/.env`**
-```
-REACT_APP_API_BASE=http://localhost:9193
-```
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/health` | GET | Health check + version |
+| `/status` | GET | Detailed app status |
+| `/sources/list` | GET | Available XML files |
+| `/sources/select` | POST | Save selected sources |
+| `/channels/from-sources` | GET | Load channels from sources |
+| `/channels/selected` | GET | Get saved channels |
+| `/channels/select` | POST | Save selected channels |
+| `/channels/export` | POST | Export to JSON backup |
+| `/channels/import` | POST | Import from JSON backup |
+| `/merge/execute` | POST | Execute merge (creates temp file) |
+| `/merge/current` | GET | Current live merge info |
+| `/merge/save` | POST | Promote temp to current + archive previous |
+| `/archives/list` | GET | All archives + current |
+| `/archives/download/{filename}` | GET | Download archive file |
+| `/archives/delete/{filename}` | DELETE | Delete archive file |
+| `/settings/get` | GET | Get all settings |
+| `/settings/set` | POST | Save settings |
 
 ---
 
@@ -196,7 +157,7 @@ CREATE TABLE settings (
 )
 ```
 
-### archives
+### archives ⭐ (NEW/Enhanced in v0.3.1)
 ```sql
 CREATE TABLE archives (
   filename TEXT PRIMARY KEY,
@@ -210,31 +171,65 @@ CREATE TABLE archives (
 
 ---
 
-## Common Commands
+## Local Development Setup
 
-### Backend
+### Quick Start (See LOCAL_DEV.md for details)
+
+**Terminal 1 - Backend:**
 ```bash
-# Check status
-systemctl status epg-merge
-
-# View logs
-journalctl -u epg-merge -f
-sudo journalctl -u epg-merge -n 50
-
-# Manual start (dev)
+cd ~/github/epg-merge/backend
+source venv/bin/activate
 python -m uvicorn main:app --host 0.0.0.0 --port 9193 --reload
 ```
 
-### Frontend Build
+**Terminal 2 - Frontend:**
 ```bash
-bash scripts/build.sh
+cd ~/github/epg-merge/frontend
+npm install  # first time only
+npm start
+# Opens http://localhost:3001
 ```
 
-### Cache Inspection
+**Terminal 3 - Testing:**
 ```bash
-ls -lh /config/epg_cache/
-du -sh /config/epg_cache/
+# Test API
+curl http://localhost:9193/api/health | jq .
+
+# Monitor database
+sqlite3 ../backend/config/app.db "SELECT * FROM archives ORDER BY created_at DESC LIMIT 5;"
+
+# Monitor archives directory
+watch -n 1 'ls -lh ../backend/config/archives/'
 ```
+
+### Environment Variables
+**File**: `frontend/.env`
+```
+REACT_APP_API_BASE=http://localhost:9193
+```
+
+---
+
+## Recent Changes (v0.3.1)
+
+### Archive Versioning ⭐
+- Each merge creates unique temp file: `merged_YYYYMMDD_HHMMSS.xml.gz`
+- **Before v0.3.1**: Merges overwrote same file, lost previous data
+- **After v0.3.1**: Full version history with metadata, controlled promotion
+
+### Version Management ⭐
+- Centralized in `backend/version.py` (single source of truth)
+- No more manual updates across 6+ files
+- Version auto-synced to all files via build process
+
+### Documentation ⭐
+- **LOCAL_DEV.md**: Quick reference for local setup and testing
+- **VERSION.md**: Version management strategy and workflow
+- **RELEASE.md**: Step-by-step release process with tagging
+
+### Testing Infrastructure ⭐
+- `backend/test-comprehensive.sh`: Full archive workflow tests
+- `backend/test-save-merge.sh`: Archive save/promote tests
 
 ---
 
@@ -242,20 +237,18 @@ du -sh /config/epg_cache/
 
 ```
 backend/
-├── main.py (clean routing)
+├── version.py (⭐ NEW - centralized version)
+├── main.py (routes, imports version)
 ├── config.py (configuration)
 ├── database.py (SQLite wrapper)
-├── services/ (5 modular services)
+├── services/
 │   ├── base_service.py
 │   ├── source_service.py
 │   ├── channel_service.py
-│   ├── merge_service.py
-│   ├── archive_service.py
+│   ├── merge_service.py (⭐ temp filename + archive logic)
+│   ├── archive_service.py (⭐ cleanup method)
 │   └── settings_service.py
-├── utils/
-│   ├── logger.py
-│   ├── errors.py
-│   └── validators.py
+├── utils/ (logger, errors, validators)
 └── tests/ (77%+ coverage)
 
 frontend/
@@ -264,35 +257,139 @@ frontend/
 │   ├── App.css (styling)
 │   ├── hooks/ (useApi, useLocalStorage, useTheme)
 │   ├── components/ (Navbar, Terminal, ProgressBar, DualListSelector, ErrorBoundary)
-│   └── pages/ (SourcesPage, ChannelsPage, MergePage, ArchivesPage)
-└── package.json (React 18, lucide-react, axios)
+│   └── pages/ (SourcesPage, ChannelsPage, MergePage, ArchivesPage, SettingsPage)
+├── package.json (⭐ refs backend version)
+└── .env (REACT_APP_API_BASE)
+
+Root
+├── backend/
+├── frontend/
+├── install/ (install.sh - ⭐ reads backend version)
+├── scripts/
+│   ├── build.sh
+│   ├── backup.sh
+│   ├── restore.sh
+│   ├── update.sh
+│   ├── version.sh
+│   └── sync-version.js (⭐ NEW utility)
+├── LOCAL_DEV.md (⭐ NEW - dev quick ref)
+├── VERSION.md (⭐ NEW - version strategy)
+├── RELEASE.md (⭐ NEW - release process)
+├── CHANGELOG.md (updated for v0.3.1)
+├── DEPLOYMENT.md (updated with release section)
+└── CONTEXT.md (this file)
 ```
 
 ---
 
-## Next Priority Features
+## Known Limitations & Next Features
 
-1. **Real-time log streaming** - SSE/WebSocket to show detailed cache logs in UI terminal
-2. **Implement scheduled merges** - Cron execution for daily/weekly automatic merges
-3. **Archive retention cleanup** - Automatic deletion based on retention policy
-4. **Discord notifications** - Webhook integration for merge alerts
-5. **Settings page UI completion** - Full backend implementation
-6. **Multi-user support** - Authentication and per-user settings
-7. **Merge statistics dashboard** - Charts and analytics
+### Current Limitations
+1. **Settings backend execution**: UI complete, actual scheduling not yet implemented
+2. **Scheduled merges**: Cron execution framework ready, not yet active
+3. **Discord notifications**: Webhook field exists, not yet implemented
+4. **Real-time log streaming**: Logs shown after merge completes, not live
+
+### Next Priority Features
+1. **Scheduled merges** - Cron execution for daily/weekly automatic runs
+2. **Discord notifications** - Webhook integration for completion alerts
+3. **Archive retention cleanup** - Auto-delete based on configured policy
+4. **Settings backend implementation** - Activate cron scheduling
+5. **Real-time log streaming** - SSE/WebSocket for live logs
+6. **Merge statistics dashboard** - Charts and analytics
+7. **Multi-user support** - Authentication and per-user settings
+
+---
+
+## Common Development Commands
+
+### Backend
+```bash
+# Start with reload
+python -m uvicorn main:app --reload
+
+# Check health + version
+curl http://localhost:9193/api/health | jq .
+
+# View database
+sqlite3 config/app.db ".tables"
+
+# Clear data for fresh test
+rm config/app.db config/archives/merged* config/epg_cache/*
+```
+
+### Frontend
+```bash
+# Start dev server
+npm start
+
+# Build for production
+npm run build
+
+# Check for issues
+npm run build 2>&1 | tail -20
+```
+
+### Git & Release
+```bash
+# Check version
+cat backend/version.py
+
+# Create release
+git tag -a v0.3.1 -m "Release message"
+git push origin v0.3.1
+
+# See release process
+cat RELEASE.md
+```
+
+---
+
+## Testing Checklist
+
+Before commit:
+- [ ] Backend starts without errors: `python -m uvicorn main:app --reload`
+- [ ] Health check returns correct version: `curl http://localhost:9193/api/health | jq .version`
+- [ ] Frontend navbar shows correct version
+- [ ] Archive test passes: Run comprehensive test script
+- [ ] Database maintains integrity: Check archives table has correct metadata
+- [ ] LOCAL_DEV.md procedures work end-to-end
 
 ---
 
 ## Important Notes for Next Session
 
-- **Cache checking logs are in Terminal 1 (backend)**, not in the frontend UI terminal
-- Use `ls -lh /config/epg_cache/` to verify cached files and their ages
-- File sizes are the primary cache validation method (HTTP HEAD check)
-- Archive metadata (channels/programs) is stored in SQLite after each merge
-- "Save as Current" properly archives the previous version with timestamp
-- All API endpoints are working and tested
+1. **Version is centralized**: Only edit `backend/version.py`, all other files auto-sync
+2. **Archive flow**: Merge creates temp → user reviews → "Save as Current" promotes + archives
+3. **Database schema**: archives table has full CRUD, metadata persisted
+4. **Frontend version**: Reads from `package.json` env var, displays in Navbar
+5. **Local dev**: See LOCAL_DEV.md for quick refresh on setup
+6. **Testing**: Comprehensive test scripts in backend/ directory
+7. **Release process**: See RELEASE.md for tagging and release steps
 
 ---
 
-**Last Updated:** October 26, 2025  
-**Status:** Fully Functional (v0.2.0)  
-**Contact/Support:** GitHub repository
+## Production Deployment
+
+### Quick Deployment
+```bash
+# On production server
+cd /opt/epg-merge-app
+sudo bash install/install.sh
+# Select: 2) Update/Upgrade
+# Uses centralized version from backend/version.py
+```
+
+### Check Version on Production
+```bash
+cat /opt/epg-merge-app/backend/version.py
+curl http://10.96.70.113:9193/api/health | jq .version
+```
+
+---
+
+**Last Updated:** October 28, 2025
+**Version:** v0.3.1 (Archive Versioning + Version Management)
+**Status:** Production Ready with Full Archive Support
+**Maintainer:** di5cord20
+**Repository:** https://github.com/di5cord20/epg-merge
