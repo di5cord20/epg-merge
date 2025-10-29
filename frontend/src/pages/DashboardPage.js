@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, PlayCircle, Pause, TrendingUp, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { RefreshCw, TrendingUp, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 
 /**
- * Dashboard Page - v0.4.0
- * Displays scheduled job status, history, and quick actions
- * Run Now executes merge with saved sources/channels/settings
+ * Dashboard Page - v0.4.2
+ * Pure monitoring display (Run Now button removed)
+ * Shows: job status, history, next scheduled run
  */
 export const DashboardPage = () => {
   const [status, setStatus] = useState(null);
@@ -13,7 +13,6 @@ export const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [running, setRunning] = useState(false);
   const { call } = useApi();
 
   // =========================================================================
@@ -22,25 +21,19 @@ export const DashboardPage = () => {
 
   const fetchStatus = useCallback(async () => {
     try {
-      console.log('Fetching job status...');
       const data = await call('/api/jobs/status');
-      console.log('Status received:', data);
       setStatus(data);
     } catch (err) {
       setError('Failed to fetch job status: ' + err.message);
-      console.error('Status fetch error:', err);
     }
   }, [call]);
 
   const fetchHistory = useCallback(async () => {
     try {
-      console.log('Fetching job history...');
       const data = await call('/api/jobs/history?limit=10');
-      console.log('History received:', data);
       setHistory(data.jobs || []);
     } catch (err) {
       setError('Failed to fetch job history: ' + err.message);
-      console.error('History fetch error:', err);
     }
   }, [call]);
 
@@ -64,80 +57,9 @@ export const DashboardPage = () => {
   useEffect(() => {
     if (!autoRefresh) return;
 
-    // Refresh more frequently if job is running
-    const interval = status?.is_running ? 2000 : 10000;
-    const timer = setInterval(refreshData, interval);
-
-    return () => clearInterval(timer);
-  }, [autoRefresh, status?.is_running]);
-
-  // =========================================================================
-  // ACTIONS
-  // =========================================================================
-
-  const handleRunNowTest = async () => {
-    try {
-      setError(null);
-      setRunning(true);
-
-      // Load saved sources, channels, and settings from localStorage
-      const selectedSources = JSON.parse(localStorage.getItem('selectedSources') || '[]');
-      const selectedChannels = JSON.parse(localStorage.getItem('selectedChannels') || '[]');
-      
-      // FIX: Parse timeframe as integer, not string
-      const timeframe = localStorage.getItem('selectedTimeframe') || '3';
-      const feedType = localStorage.getItem('selectedFeedType') || 'iptv';
-
-      // Validate
-      if (selectedSources.length === 0) {
-        setError('❌ No sources selected. Please go to Sources page and select sources.');
-        setRunning(false);
-        return;
-      }
-
-      if (selectedChannels.length === 0) {
-        setError('❌ No channels selected. Please go to Channels page and select channels.');
-        setRunning(false);
-        return;
-      }
-
-      console.log('Triggering merge with:', {
-        sources: selectedSources.length,
-        channels: selectedChannels.length,
-        timeframe: timeframe,
-        feedType: feedType
-      });
-
-      // Trigger scheduled merge job (which handles everything + saves job history)
-      const jobResult = await call('/api/jobs/execute', {
-        method: 'POST'
-      });
-      
-      console.log('Job execution result:', jobResult);
-
-      // Refresh status immediately
-      await refreshData();
-      alert('✅ Merge completed successfully!');
-    } catch (err) {
-      setError('Failed to run merge: ' + err.message);
-      console.error('Merge error:', err);
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  const handleCancelJob = async () => {
-    if (!window.confirm('Cancel running job?')) return;
-
-    try {
-      setError(null);
-      const result = await call('/api/jobs/cancel', { method: 'POST' });
-      alert(result.message || 'Job cancelled');
-      await refreshData();
-    } catch (err) {
-      setError('Failed to cancel job: ' + err.message);
-    }
-  };
+    const interval = setInterval(refreshData, status?.is_running ? 2000 : 10000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, status?.is_running, refreshData]);
 
   // =========================================================================
   // FORMATTERS
@@ -298,7 +220,7 @@ export const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Action Buttons */}
+      {/* Refresh Button & Auto-refresh Toggle */}
       <div style={{ marginBottom: '30px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
         <button
           onClick={refreshData}
@@ -309,34 +231,6 @@ export const DashboardPage = () => {
         >
           <RefreshCw size={16} /> Refresh
         </button>
-
-        <button
-          onClick={handleRunNowTest}
-          disabled={status?.is_running || loading || running}
-          style={{
-            ...buttonStyle,
-            background: status?.is_running ? '#6b7280' : '#10b981',
-            cursor: status?.is_running ? 'not-allowed' : 'pointer'
-          }}
-          onMouseEnter={(e) => !status?.is_running && (e.target.style.background = '#059669')}
-          onMouseLeave={(e) => !status?.is_running && (e.target.style.background = '#10b981')}
-        >
-          <PlayCircle size={16} /> {running ? 'Starting...' : 'Run Now (Test)'}
-        </button>
-
-        {status?.is_running && (
-          <button
-            onClick={handleCancelJob}
-            style={{
-              ...buttonStyle,
-              background: '#ef4444'
-            }}
-            onMouseEnter={(e) => e.target.style.background = '#dc2626'}
-            onMouseLeave={(e) => e.target.style.background = '#ef4444'}
-          >
-            <Pause size={16} /> Cancel
-          </button>
-        )}
 
         {/* Auto-refresh toggle */}
         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginLeft: 'auto' }}>
@@ -431,7 +325,7 @@ export const DashboardPage = () => {
         
         {history.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>
-            No job history yet. Run a job to see results.
+            No job history yet. Scheduled merges will appear here.
           </div>
         ) : (
           <table style={tableStyle}>

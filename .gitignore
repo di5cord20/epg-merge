@@ -27,7 +27,7 @@ yarn-error.log*
 *.db
 *.xml.gz
 xml_cache/
-archives/
+#archives/
 backups/
 .install_config
 .version

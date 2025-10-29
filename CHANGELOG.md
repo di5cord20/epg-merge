@@ -2,6 +2,16 @@
 
 All notable changes to EPG Merge Application will be documented in this file.
 
+## [0.4.2] - 2025-10-29
+
+### Changed
+- Settings: Split into 7 focused sub-components with sidebar navigation
+- Archives: Split into 3 focused sub-components (table, legend, orchestrator)
+- Dashboard: Pure monitoring display (removed Run Now button)
+- Tests: 32 passing integration and utility tests
+- Archive cleanup: Simplified to single checkbox (archive_retention_cleanup_expired)
+- All components use consistent inline styling and prop patterns
+  
 ## [0.4.1] - 2025-10-29
 
 ### Changed
