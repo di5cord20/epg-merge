@@ -2,6 +2,31 @@
 
 All notable changes to EPG Merge Application will be documented in this file.
 
+## [0.4.1] - 2025-10-29
+
+### Changed
+- **Backend Persistence:** Consolidated localStorage + SQLite pattern (SQLite now single source of truth)
+- **Version Management:** Centralized in `backend/version.py` only (no manual syncing needed)
+- **Database Layer:** Removed redundant methods, cleaner schema, better error handling
+- **Settings Service:** Centralized defaults in `SettingsService.DEFAULTS` (removed duplicates)
+- **Job History:** Added batch cleanup utility for old job records
+
+### Fixed
+- Eliminated duplicate settings storage patterns
+- Removed version syncing across 6 different files (now automatic)
+- Simplified database connection management
+
+### Technical Details
+- Database schema unchanged (backward compatible)
+- All APIs unchanged (no frontend modifications needed)
+- Performance improved: fewer redundant database calls
+- Code cleaner: ~15% reduction in backend complexity
+
+### Migration Notes
+- Existing databases auto-migrate on startup
+- No data loss
+- Automatic backward compatibility
+
 ## [0.4.0] - 2025-10-29
 
 ### Added

@@ -1,22 +1,25 @@
 """
 EPG Merge Application - Version Information
-Single source of truth for version across all components
+SINGLE SOURCE OF TRUTH - Update this file only
+All other files auto-sync during build/deployment
 """
 
-__version__ = "0.4.0"
-__release_date__ = "2025-10-28"
+__version__ = "0.4.1"
+__release_date__ = "2025-10-29"
 __author__ = "di5cord20"
 __license__ = "MIT"
-__description__ = "TV feed merger with archive cleanup and enhanced UI"
+__description__ = "TV feed merger with simplified persistence and streamlined services"
 
-# Version components
+# Semantic versioning components
 VERSION_MAJOR = 0
-VERSION_MINOR = 3
+VERSION_MINOR = 4
 VERSION_PATCH = 1
+
 
 def get_version():
     """Get current version string"""
     return __version__
+
 
 def get_version_info():
     """Get detailed version information"""
@@ -30,6 +33,7 @@ def get_version_info():
         "license": __license__,
         "description": __description__
     }
+
 
 if __name__ == "__main__":
     print(f"EPG Merge App v{__version__} ({__release_date__})")

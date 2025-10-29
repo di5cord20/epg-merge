@@ -1,6 +1,9 @@
 """
-EPG Merge Application - Database Layer
-SQLite database wrapper with connection management and schema initialization
+EPG Merge Application - Database Layer (Refactored v0.4.1)
+Simplified persistence with SQLite as single source of truth
+- Removed redundant methods
+- Cleaner schema
+- Better error handling
 """
 
 import logging
@@ -11,7 +14,7 @@ from datetime import datetime
 
 
 class Database:
-    """SQLite database wrapper with connection management"""
+    """SQLite database wrapper - simplified and efficient"""
     
     def __init__(self, db_path: Path):
         """Initialize database with path"""
@@ -32,7 +35,7 @@ class Database:
             conn = self._get_connection()
             cursor = conn.cursor()
             
-            # Channels table
+            # Channels table - selected channels persist here
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS channels_selected (
                     channel_name TEXT PRIMARY KEY,
@@ -40,7 +43,7 @@ class Database:
                 )
             ''')
             
-            # Settings table
+            # Settings table - all configuration stored here
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS settings (
                     key TEXT PRIMARY KEY,
@@ -49,7 +52,7 @@ class Database:
                 )
             ''')
             
-            # Archives table
+            # Archives table - metadata for all merged files
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS archives (
                     filename TEXT PRIMARY KEY,
@@ -61,15 +64,7 @@ class Database:
                 )
             ''')
             
-            # Schema version
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS schema_version (
-                    version INTEGER PRIMARY KEY,
-                    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-
-            # Job history table
+            # Job history table - scheduled merge execution records
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS job_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -93,7 +88,7 @@ class Database:
             raise
     
     def health_check(self) -> bool:
-        """Check database health"""
+        """Check database connectivity and integrity"""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -103,23 +98,10 @@ class Database:
             self.logger.error(f"Health check failed: {e}")
             return False
     
-    def get_table_count(self) -> int:
-        """Get count of tables in database"""
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table'"
-            )
-            return cursor.fetchone()[0]
-        except Exception as e:
-            self.logger.error(f"Error getting table count: {e}")
-            return 0
-    
     # ========== CHANNELS ==========
     
     def get_selected_channels(self) -> List[str]:
-        """Get all selected channels"""
+        """Get all selected channels from database"""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -130,11 +112,12 @@ class Database:
             return []
     
     def save_selected_channels(self, channels: List[str]) -> None:
-        """Save selected channels"""
+        """Replace all selected channels (atomic operation)"""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
             
+            # Clear and reload
             cursor.execute("DELETE FROM channels_selected")
             for channel in channels:
                 cursor.execute(
@@ -143,7 +126,7 @@ class Database:
                 )
             
             conn.commit()
-            self.logger.info(f"Saved {len(channels)} channels")
+            self.logger.info(f"Saved {len(channels)} channels to database")
         except Exception as e:
             self.logger.error(f"Error saving channels: {e}")
             raise
@@ -151,7 +134,7 @@ class Database:
     # ========== SETTINGS ==========
     
     def get_setting(self, key: str, default: str = "") -> str:
-        """Get a setting by key"""
+        """Get single setting by key"""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -159,25 +142,26 @@ class Database:
             row = cursor.fetchone()
             return row[0] if row else default
         except Exception as e:
-            self.logger.error(f"Error getting setting {key}: {e}")
+            self.logger.error(f"Error getting setting '{key}': {e}")
             return default
     
     def set_setting(self, key: str, value: str) -> None:
-        """Set a setting"""
+        """Set or update a single setting (atomic)"""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-                (key, value)
+                "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+                (key, str(value), datetime.now().isoformat())
             )
             conn.commit()
+            self.logger.debug(f"Set setting '{key}'")
         except Exception as e:
-            self.logger.error(f"Error setting {key}: {e}")
+            self.logger.error(f"Error setting '{key}': {e}")
             raise
     
     def get_all_settings(self) -> Dict[str, str]:
-        """Get all settings"""
+        """Get all settings as dictionary"""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -187,10 +171,29 @@ class Database:
             self.logger.error(f"Error getting all settings: {e}")
             return {}
     
+    def batch_set_settings(self, settings: Dict[str, str]) -> None:
+        """Set multiple settings atomically"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            now = datetime.now().isoformat()
+            
+            for key, value in settings.items():
+                cursor.execute(
+                    "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+                    (key, str(value), now)
+                )
+            
+            conn.commit()
+            self.logger.info(f"Batch saved {len(settings)} settings")
+        except Exception as e:
+            self.logger.error(f"Error in batch_set_settings: {e}")
+            raise
+    
     # ========== ARCHIVES ==========
     
     def get_archive(self, filename: str) -> Optional[Dict[str, Any]]:
-        """Get archive metadata"""
+        """Get archive metadata by filename"""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -201,11 +204,12 @@ class Database:
             row = cursor.fetchone()
             return dict(row) if row else None
         except Exception as e:
-            self.logger.error(f"Error getting archive {filename}: {e}")
+            self.logger.error(f"Error getting archive '{filename}': {e}")
             return None
     
-    def save_archive(self, filename: str, channels: int, programs: int, days: int, size: int) -> None:
-        """Save archive metadata"""
+    def save_archive(self, filename: str, channels: int, programs: int, 
+                     days_included: int, size_bytes: int) -> None:
+        """Save or update archive metadata"""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -213,11 +217,12 @@ class Database:
                 '''INSERT OR REPLACE INTO archives 
                    (filename, created_at, channels, programs, days_included, size_bytes)
                    VALUES (?, ?, ?, ?, ?, ?)''',
-                (filename, datetime.now().isoformat(), channels, programs, days, size)
+                (filename, datetime.now().isoformat(), channels, programs, days_included, size_bytes)
             )
             conn.commit()
+            self.logger.debug(f"Saved archive metadata: {filename}")
         except Exception as e:
-            self.logger.error(f"Error saving archive {filename}: {e}")
+            self.logger.error(f"Error saving archive '{filename}': {e}")
             raise
     
     def delete_archive(self, filename: str) -> None:
@@ -229,9 +234,90 @@ class Database:
             conn.commit()
             self.logger.info(f"Deleted archive metadata: {filename}")
         except Exception as e:
-            self.logger.error(f"Error deleting archive {filename}: {e}")
+            self.logger.error(f"Error deleting archive '{filename}': {e}")
             raise
-
+    
+    # ========== JOB HISTORY ==========
+    
+    def save_job(self, job_id: str, status: str, started_at: str,
+                 completed_at: Optional[str] = None,
+                 merge_filename: Optional[str] = None,
+                 channels: Optional[int] = None,
+                 programs: Optional[int] = None,
+                 file_size: Optional[str] = None,
+                 error_message: Optional[str] = None,
+                 execution_time: Optional[float] = None) -> None:
+        """Save job execution record"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                '''INSERT OR REPLACE INTO job_history 
+                   (job_id, status, started_at, completed_at, merge_filename, 
+                    channels_included, programs_included, file_size, error_message, execution_time_seconds)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (job_id, status, started_at, completed_at, merge_filename, 
+                 channels, programs, file_size, error_message, execution_time)
+            )
+            conn.commit()
+            self.logger.debug(f"Saved job record: {job_id}")
+        except Exception as e:
+            self.logger.error(f"Error saving job '{job_id}': {e}")
+            raise
+    
+    def get_job_history(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Get recent job execution history"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                '''SELECT * FROM job_history 
+                   ORDER BY started_at DESC LIMIT ?''',
+                (limit,)
+            )
+            return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            self.logger.error(f"Error getting job history: {e}")
+            return []
+    
+    def get_latest_job(self) -> Optional[Dict[str, Any]]:
+        """Get most recent job execution"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                '''SELECT * FROM job_history 
+                   ORDER BY started_at DESC LIMIT 1'''
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        except Exception as e:
+            self.logger.error(f"Error getting latest job: {e}")
+            return None
+    
+    def cleanup_old_jobs(self, days: int = 30) -> int:
+        """Delete job history older than specified days"""
+        try:
+            cutoff_date = (datetime.now() - 
+                          __import__('datetime').timedelta(days=days)).isoformat()
+            
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM job_history WHERE started_at < ?",
+                (cutoff_date,)
+            )
+            deleted = cursor.rowcount
+            conn.commit()
+            
+            if deleted > 0:
+                self.logger.info(f"Cleaned up {deleted} old job records")
+            
+            return deleted
+        except Exception as e:
+            self.logger.error(f"Error cleaning job history: {e}")
+            return 0
+    
     def close(self) -> None:
         """Close database connection"""
         if self._connection:

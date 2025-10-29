@@ -251,27 +251,15 @@ async def select_channels(data: dict):
         raise HTTPException(status_code=500, detail="Failed to save channels")
 
 
-@app.post("/api/channels/select", tags=["Channels"])
-async def select_channels(data: dict):
-    """Save selected channels
-    
-    Args:
-        data: Dictionary with 'channels' list
-    
-    Returns:
-        Status message with count
-    """
+@app.get("/api/channels/selected", tags=["Channels"])
+async def get_selected_channels():
+    """Get previously selected channels"""
     try:
-        channels = data.get("channels", [])
-        if not isinstance(channels, list):
-            raise ValueError("channels must be a list")
-        
-        channel_service.save_selected_channels(channels)
-        logger.info(f"Saved {len(channels)} selected channels")
-        return {"status": "saved", "count": len(channels)}
+        channels = channel_service.get_selected_channels()
+        return {"channels": channels}
     except Exception as e:
-        logger.error(f"Error saving channels: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save channels")
+        logger.error(f"Error getting selected channels: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get selected channels")
 
 
 @app.post("/api/channels/export", tags=["Channels"])

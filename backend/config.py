@@ -14,8 +14,13 @@ class Config:
     def __init__(self):
         """Initialize configuration from environment variables"""
         self.environment = os.getenv("ENVIRONMENT", "development")
-        # Use local directory for development, /config for production
-        default_config_dir = "./config" if self.environment == "development" else "/config"
+        # For development: config at project root
+        # For production: /config (standard location)
+        if self.environment == "development":
+            # Go up one level from backend/ to project root
+            default_config_dir = str(Path(__file__).parent.parent / "config")
+        else:
+            default_config_dir = "/config"
         self.config_dir = Path(os.getenv("CONFIG_DIR", default_config_dir))
         self.archive_dir = Path(os.getenv("ARCHIVE_DIR", self.config_dir / "archives"))
         self.cache_dir = Path(os.getenv("CACHE_DIR", self.config_dir / "epg_cache"))
