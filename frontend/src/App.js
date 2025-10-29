@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navbar } from './components/Navbar';
-import { useTheme } from './hooks/useTheme';
+// import { useTheme } from './hooks/useTheme'; // DISABLED - light mode removed in v0.3.7
 import { SourcesPage } from './pages/SourcesPage';
 import { ChannelsPage } from './pages/ChannelsPage';
 import { MergePage } from './pages/MergePage';
@@ -16,7 +16,7 @@ import './App.css';
 function App() {
   const [currentPage, setCurrentPage] = useState('sources');
   const [selectedSources, setSelectedSources] = useState([]);
-  const { darkMode, toggleTheme } = useTheme();
+  // const { darkMode, toggleTheme } = useTheme(); // DISABLED - light mode removed in v0.3.7
   
   const renderPage = () => {
     switch(currentPage) {
@@ -37,12 +37,13 @@ function App() {
   
   return (
     <ErrorBoundary>
-      <div className={`app ${!darkMode ? 'light-mode' : ''}`}>
+      {/* Dark mode only - light mode removed in v0.3.7 */}
+      <div className="app">
         <Navbar
           currentPage={currentPage}
           onPageChange={setCurrentPage}
-          onThemeToggle={toggleTheme}
-          darkMode={darkMode}
+          /* onThemeToggle={toggleTheme} // DISABLED - light mode removed in v0.3.7 */
+          /* darkMode={darkMode} // DISABLED - light mode removed in v0.3.7 */
         />
         <main className="main-content">
           {renderPage()}

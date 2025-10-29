@@ -2,6 +2,12 @@
 
 All notable changes to EPG Merge Application will be documented in this file.
 
+# [0.3.7] - 2025-10-28
+
+### Changed
+- Setting page: cosmetic changes + discord test notification button
+- App.css/js: removed light mode
+ 
 # [0.3.6] - 2025-10-28
 
 ### Changed
