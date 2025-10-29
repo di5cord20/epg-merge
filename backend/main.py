@@ -3,6 +3,7 @@ EPG Merge Application - FastAPI Backend
 Modular, maintainable architecture with proper separation of concerns
 """
 
+import asyncio
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
@@ -21,6 +22,7 @@ from services.channel_service import ChannelService
 from services.merge_service import MergeService
 from services.archive_service import ArchiveService
 from services.settings_service import SettingsService
+from services.job_service import ScheduledJobService
 
 from version import get_version
 
@@ -63,7 +65,10 @@ channel_service = ChannelService(config, db)
 merge_service = MergeService(config, db)
 archive_service = ArchiveService(config, db)
 settings_service = SettingsService(db)
-
+job_service = ScheduledJobService(
+    config, db, merge_service, channel_service, 
+    source_service, settings_service
+)
 
 @app.on_event("startup")
 async def startup_event():
@@ -71,6 +76,11 @@ async def startup_event():
     logger.info("🚀 Starting EPG Merge Application")
     db.initialize()
     logger.info("✅ Database initialized")
+
+    # Initialize job service
+    job_service.init_job_history_table()
+    logger.info("✅ Job history initialized")
+
     logger.info(f"📁 Config: {config.config_dir}")
     logger.info(f"📦 Archives: {config.archive_dir}")
     logger.info(f"💾 Cache: {config.cache_dir}")
@@ -181,7 +191,9 @@ async def select_sources(data: dict):
         if not isinstance(sources, list):
             raise ValueError("sources must be a list")
         
-        db.set_setting("selected_sources", str(sources))
+        # FIX: Use json.dumps() to store as proper JSON, not str()
+        import json
+        db.set_setting("selected_sources", json.dumps(sources))
         logger.info(f"Saved {len(sources)} selected sources")
         return {"status": "saved", "count": len(sources)}
     except Exception as e:
@@ -213,19 +225,30 @@ async def get_channels_from_sources(sources: str = Query("")):
         return {"channels": []}
 
 
-@app.get("/api/channels/selected", tags=["Channels"])
-async def get_selected_channels():
-    """Get previously selected channels
+@app.post("/api/channels/select", tags=["Channels"])
+async def select_channels(data: dict):
+    """Save selected channels
+    
+    Args:
+        data: Dictionary with 'channels' list
     
     Returns:
-        Dictionary with selected channels list
+        Status message with count
     """
     try:
-        channels = channel_service.get_selected_channels()
-        return {"channels": channels}
+        channels = data.get("channels", [])
+        if not isinstance(channels, list):
+            raise ValueError("channels must be a list")
+        
+        # FIX: Use json.dumps() to store as proper JSON, not str()
+        import json
+        channel_service.save_selected_channels(channels)
+        db.set_setting("selected_channels", json.dumps(channels))
+        logger.info(f"Saved {len(channels)} selected channels")
+        return {"status": "saved", "count": len(channels)}
     except Exception as e:
-        logger.error(f"Error getting selected channels: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get selected channels")
+        logger.error(f"Error saving channels: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save channels")
 
 
 @app.post("/api/channels/select", tags=["Channels"])
@@ -493,6 +516,152 @@ async def set_settings(data: dict):
     except Exception as e:
         logger.error(f"Error saving settings: {e}")
         raise HTTPException(status_code=500, detail="Failed to save settings")
+
+# ============================================================================
+# SCHEDULED JOB ENDPOINTS
+# ============================================================================
+
+@app.post("/api/jobs/execute", tags=["Scheduled Jobs"])
+async def trigger_scheduled_merge():
+    """Manually trigger scheduled merge job (for testing)
+    
+    Returns:
+        Job execution result
+    
+    Example curl:
+        curl -X POST http://localhost:9193/api/jobs/execute
+    """
+    try:
+        if job_service.is_job_running:
+            return {
+                "status": "rejected",
+                "message": "Job already running. Previous job will be cancelled and restarted.",
+            }
+        
+        logger.info("📌 Scheduled merge job triggered manually")
+        
+        # Create asyncio task for job execution
+        task = asyncio.create_task(job_service.execute_scheduled_merge())
+        job_service.current_job_task = task
+        
+        # Add callback to log any exceptions
+        def task_done_callback(t):
+            try:
+                if t.cancelled():
+                    logger.info("Job task was cancelled")
+                    return
+                
+                result = t.result()
+                logger.info(f"Job task completed: {result.get('status')}")
+            except asyncio.CancelledError:
+                logger.info("Job task was cancelled (CancelledError)")
+            except Exception as e:
+                logger.error(f"❌ Job task failed with exception: {e}", exc_info=True)
+        
+        task.add_done_callback(task_done_callback)
+        
+        return {
+            "status": "started",
+            "message": "Scheduled merge job started. Monitor job history for results."
+        }
+    except Exception as e:
+        logger.error(f"Error triggering scheduled merge: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to trigger scheduled merge")
+
+
+@app.get("/api/jobs/history", tags=["Scheduled Jobs"])
+async def get_job_history(limit: int = 50):
+    """Get job execution history
+    
+    Args:
+        limit: Maximum number of records (default 50)
+    
+    Returns:
+        List of job history records
+    
+    Example curl:
+        curl http://localhost:9193/api/jobs/history?limit=10
+    """
+    try:
+        history = job_service.get_job_history(limit)
+        logger.info(f"Retrieved {len(history)} job history records")
+        return {"jobs": history, "count": len(history)}
+    except Exception as e:
+        logger.error(f"Error retrieving job history: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve job history")
+
+
+@app.get("/api/jobs/latest", tags=["Scheduled Jobs"])
+async def get_latest_job():
+    """Get most recent job execution record
+    
+    Returns:
+        Latest job record or null if none
+    
+    Example curl:
+        curl http://localhost:9193/api/jobs/latest
+    """
+    try:
+        latest = job_service.get_latest_job()
+        return {"job": latest}
+    except Exception as e:
+        logger.error(f"Error retrieving latest job: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve latest job")
+
+
+@app.get("/api/jobs/status", tags=["Scheduled Jobs"])
+async def get_job_status():
+    """Get current job status and next scheduled run
+    
+    Returns:
+        Current job status and timing information
+    
+    Example curl:
+        curl http://localhost:9193/api/jobs/status
+    """
+    try:
+        latest = job_service.get_latest_job()
+        next_run = job_service.get_next_run_time()
+        
+        status = {
+            "is_running": job_service.is_job_running,
+            "latest_job": latest,
+            "next_scheduled_run": next_run
+        }
+        
+        return status
+    except Exception as e:
+        logger.error(f"Error getting job status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get job status")
+
+
+@app.post("/api/jobs/cancel", tags=["Scheduled Jobs"])
+async def cancel_running_job():
+    """Cancel currently running scheduled merge job
+    
+    Returns:
+        Cancellation status
+    
+    Example curl:
+        curl -X POST http://localhost:9193/api/jobs/cancel
+    """
+    try:
+        if not job_service.is_job_running or not job_service.current_job_task:
+            return {
+                "status": "no_job",
+                "message": "No job currently running"
+            }
+        
+        logger.warning("Cancelling running job")
+        job_service.current_job_task.cancel()
+        
+        return {
+            "status": "cancelled",
+            "message": "Job cancellation requested"
+        }
+    except Exception as e:
+        logger.error(f"Error cancelling job: {e}")
+        raise HTTPException(status_code=500, detail="Failed to cancel job")
 
 # ============================================================================
 # ERROR HANDLERS

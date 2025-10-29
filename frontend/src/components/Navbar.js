@@ -5,6 +5,7 @@ const TABS = [
   { id: 'channels', label: 'Channels', icon: '📺' },
   { id: 'merge', label: 'Merge', icon: '⚡' },
   { id: 'archives', label: 'Archives', icon: '📦' },
+  { id: 'dashboard', label: 'Dashboard', icon: '📊' },
   { id: 'settings', label: 'Settings', icon: '⚙️' }
 ];
 

@@ -50,8 +50,20 @@ class MergeService(BaseService):
             timeframe = data.get('timeframe', '3')
             feed_type = data.get('feed_type', 'iptv')
             
+            # SAFETY FIX: Strip quotes if timeframe was double-encoded
+            if isinstance(timeframe, str):
+                timeframe = timeframe.strip('"').strip("'")
+            
             if not sources or not channels:
                 raise ValueError("Sources and channels required")
+            
+            # Validate timeframe is valid integer
+            try:
+                tf_int = int(timeframe)
+                if tf_int not in [3, 7, 14]:
+                    raise ValueError(f"Timeframe must be 3, 7, or 14 days (got {tf_int})")
+            except ValueError as e:
+                raise ValueError(f"Invalid timeframe: {timeframe} - {str(e)}")
             
             self.logger.info(f"")
             self.logger.info(f"================== MERGE EXECUTION STARTED ==================")
@@ -367,19 +379,30 @@ class MergeService(BaseService):
             shutil.move(str(current_path), str(archive_path))
             
             # Save metadata for archived file from database
+            # Try to get existing metadata, otherwise use defaults (0 if not available)
             try:
                 if self.db:
-                    archive_data = self.db.get_archive(filename)
+                    archive_data = self.db.get_archive("merged.xml.gz")
                     if archive_data:
-                        archive_size = archive_path.stat().st_size
-                        self.db.save_archive(
-                            archive_path.name,
-                            archive_data.get('channels'),
-                            archive_data.get('programs'),
-                            archive_data.get('days_included', 0),
-                            archive_size
-                        )
-                        self.logger.info(f"   ✓ Archive metadata saved")
+                        archive_channels = archive_data.get('channels', 0)
+                        archive_programs = archive_data.get('programs', 0)
+                        archive_days = archive_data.get('days_included', 0)
+                    else:
+                        # No metadata found - use zeros
+                        self.logger.info(f"   No metadata found for previous version, using defaults")
+                        archive_channels = 0
+                        archive_programs = 0
+                        archive_days = 0
+                    
+                    archive_size = archive_path.stat().st_size
+                    self.db.save_archive(
+                        archive_path.name,
+                        archive_channels,
+                        archive_programs,
+                        archive_days,
+                        archive_size
+                    )
+                    self.logger.info(f"   ✓ Archive metadata saved: {archive_channels}ch, {archive_programs}prog, {archive_days}d")
             except Exception as e:
                 self.logger.warning(f"   ⚠️  Could not save archive metadata: {e}")
         

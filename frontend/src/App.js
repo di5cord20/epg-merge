@@ -6,6 +6,7 @@ import { SourcesPage } from './pages/SourcesPage';
 import { ChannelsPage } from './pages/ChannelsPage';
 import { MergePage } from './pages/MergePage';
 import { ArchivesPage } from './pages/ArchivesPage';
+import { DashboardPage } from './pages/DashboardPage';
 import { SettingsPage } from './pages/SettingsPage';
 import './App.css';
 
@@ -28,6 +29,8 @@ function App() {
         return <MergePage selectedSources={selectedSources} />;
       case 'archives':
         return <ArchivesPage />;
+      case 'dashboard':
+        return <DashboardPage />;
       case 'settings':
         return <SettingsPage />;
       default:

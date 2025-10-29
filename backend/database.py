@@ -68,6 +68,23 @@ class Database:
                     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+
+            # Job history table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS job_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id TEXT UNIQUE NOT NULL,
+                    status TEXT NOT NULL,
+                    started_at TIMESTAMP NOT NULL,
+                    completed_at TIMESTAMP,
+                    merge_filename TEXT,
+                    channels_included INTEGER,
+                    programs_included INTEGER,
+                    file_size TEXT,
+                    error_message TEXT,
+                    execution_time_seconds REAL
+                )
+            ''')
             
             conn.commit()
             self.logger.info("✅ Database schema initialized")
