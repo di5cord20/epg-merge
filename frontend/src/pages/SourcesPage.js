@@ -65,7 +65,7 @@ export const SourcesPage = ({ onSave }) => {
           <div className="config-group">
             <label>Timeframe</label>
             <div className="radio-group">
-              {['3', '7', '14'].map(val => (
+              {['3', '7'].map(val => (
                 <label key={val} className="radio-label">
                   <input
                     type="radio"

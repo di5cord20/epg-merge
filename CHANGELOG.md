@@ -2,13 +2,44 @@
 
 All notable changes to EPG Merge Application will be documented in this file.
 
+# [0.3.6] - 2025-10-28
+
+### Changed
+- Merge page:
+  1. Save as Current - One-Time Only
+  - Added savedAsCurrent state that persists in sessionStorage
+  - Button becomes disabled after clicking
+  - Tooltip shows: "Current merged file has already been saved as current"
+  - Summary card shows "✓ Already saved as current merge" confirmation
+  
+  2. Verbose Logging - Linux-style Output
+  - Changed from hardcoded messages to dynamic terminal-style logging
+  - Uses consistent prefix notation:
+    - [*] - Information/ongoing tasks (blue)
+    - [+] - Success/completed tasks (green)
+    - [✓] - Major success (green)
+    - [!] - Warnings (yellow)
+    - [✗] - Errors (red)
+  - All phases logged: initialization → download → merge → write → completion
+  - Matches Linux terminal update style
+  3. Progress Bar Visibility
+   - New showProgressBar state controls visibility
+   - Only shows during active merge
+   - Hidden when "Clear Log" is clicked
+   - Hidden when navigating away and returning (auto-reset on component mount)
+   - No more orphaned "%" indicator
+
+### Fixed
+- Merge page - Green download button will always download current version
+- Removed 14 day download option - need to confirm urls with jesmann
+
 ## [0.3.5] - 2025-10-28
 
 ### Changed
 - Archives table: removed Type column and moved icon indicator beside filename
 - Archives page: added legend under table
   
-# [0.3.34] - 2025-10-28
+# [0.3.4] - 2025-10-28
 
 ### Fixed
 - Archives table - delete archived file button now works

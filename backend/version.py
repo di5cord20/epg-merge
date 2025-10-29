@@ -3,7 +3,7 @@ EPG Merge Application - Version Information
 Single source of truth for version across all components
 """
 
-__version__ = "0.3.5"
+__version__ = "0.3.6"
 __release_date__ = "2025-10-28"
 __author__ = "di5cord20"
 __license__ = "MIT"

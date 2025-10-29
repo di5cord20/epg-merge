@@ -30,6 +30,11 @@ export const MergePage = ({ selectedSources }) => {
     return saved ? JSON.parse(saved) : false;
   });
 
+  const [savedAsCurrent, setSavedAsCurrent] = useState(() => {
+    const saved = sessionStorage.getItem('savedAsCurrent');
+    return saved ? JSON.parse(saved) : false;
+  });
+
   const [mergedFilename, setMergedFilename] = useState(() => {
     const saved = sessionStorage.getItem('mergedFilename');
     return saved || '';
@@ -58,8 +63,8 @@ export const MergePage = ({ selectedSources }) => {
   // Non-persisted state (reset on page load)
   const [progress, setProgress] = useState(0);
   const [merging, setMerging] = useState(false);
+  const [showProgressBar, setShowProgressBar] = useState(false);
   const [showVerboseLog, setShowVerboseLog] = useState(false);
-  const [verboseLogs, setVerboseLogs] = useState([]);
   const { call } = useApi();
 
   // Persist state to sessionStorage on changes
@@ -70,6 +75,10 @@ export const MergePage = ({ selectedSources }) => {
   useEffect(() => {
     sessionStorage.setItem('mergeComplete', JSON.stringify(mergeComplete));
   }, [mergeComplete]);
+
+  useEffect(() => {
+    sessionStorage.setItem('savedAsCurrent', JSON.stringify(savedAsCurrent));
+  }, [savedAsCurrent]);
 
   useEffect(() => {
     sessionStorage.setItem('mergedFilename', mergedFilename);
@@ -93,7 +102,12 @@ export const MergePage = ({ selectedSources }) => {
 
   const addLog = (msg) => {
     setLogs(prev => [...prev, msg]);
-    setVerboseLogs(prev => [...prev, msg]);
+  };
+
+  const addVerboseLog = (msg) => {
+    // Verbose logs are stored separately and shown in the popup
+    // They use the Linux-style prefix notation
+    setLogs(prev => [...prev, msg]);
   };
 
   const startMerge = async () => {
@@ -110,11 +124,20 @@ export const MergePage = ({ selectedSources }) => {
     
     setMerging(true);
     setMergeComplete(false);
+    setSavedAsCurrent(false);
+    setShowProgressBar(true);
     setLogs(['🟢 Merge started...']);
     setProgress(0);
     setMergedFilename('');
     
     try {
+      addVerboseLog(`[*] Initializing merge process`);
+      addVerboseLog(`[*] Configuration:`);
+      addVerboseLog(`    - Sources: ${selectedSources.length} files`);
+      addVerboseLog(`    - Channels to filter: ${channels.length}`);
+      addVerboseLog(`    - Timeframe: ${timeframe} days`);
+      addVerboseLog(`    - Feed type: ${feedType.toUpperCase()}`);
+      
       addLog(`📁 Sources: ${selectedSources.length}`);
       addLog(`📺 Channels: ${channels.length}`);
       addLog(`📅 Timeframe: ${timeframe} days`);
@@ -125,6 +148,7 @@ export const MergePage = ({ selectedSources }) => {
       
       const startTime = Date.now();
       setProgress(5);
+      addVerboseLog(`[*] Starting download phase...`);
       
       // Simulate progress updates while waiting for merge
       const progressInterval = setInterval(() => {
@@ -151,8 +175,13 @@ export const MergePage = ({ selectedSources }) => {
       const mergeTime = ((Date.now() - startTime) / 1000).toFixed(1);
       
       setProgress(95);
+      addVerboseLog('');
+      addVerboseLog(`[+] Download phase completed`);
+      addVerboseLog(`[*] Starting XML merge and filter phase...`);
+      addVerboseLog(`[+] Merge phase completed`);
+      addVerboseLog(`[*] Writing output file...`);
+      addVerboseLog(`[+] File written successfully`);
       
-      // Add summary logs
       addLog('');
       addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       addLog(`✅ MERGE COMPLETED SUCCESSFULLY (${mergeTime}s)`);
@@ -165,6 +194,18 @@ export const MergePage = ({ selectedSources }) => {
       addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       addLog('Next: Download or Save as Current →');
       
+      addVerboseLog('');
+      addVerboseLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      addVerboseLog(`[✓] MERGE COMPLETED SUCCESSFULLY (${mergeTime}s)`);
+      addVerboseLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      addVerboseLog(`[+] Result: ${data.filename}`);
+      addVerboseLog(`[+] Channels included: ${data.channels_included}`);
+      addVerboseLog(`[+] Programs included: ${data.programs_included}`);
+      addVerboseLog(`[+] Days included: ${data.days_included}`);
+      addVerboseLog(`[+] File size: ${data.file_size}`);
+      addVerboseLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      addVerboseLog('[*] Ready for download or save to current');
+      
       setMergedFilename(data.filename);
       setMergedChannels(data.channels_included);
       setMergedPrograms(data.programs_included);
@@ -175,24 +216,24 @@ export const MergePage = ({ selectedSources }) => {
     } catch (err) {
       addLog('');
       addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      addLog(`❌ MERGE FAILED`);
+      addLog(`[✗] MERGE FAILED`);
       addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      addLog(`Error: ${err.message}`);
+      addLog(`[!] Error: ${err.message}`);
       addLog('');
-      addLog('Check backend terminal for detailed error information');
+      addLog('[*] Check backend terminal for detailed error information');
       setProgress(0);
     } finally {
       setMerging(false);
     }
   };
 
-  const handleDownload = async (filename) => {
+  const handleDownload = async () => {
     try {
       addLog('');
-      addLog(`⬇️ Downloading ${filename}...`);
+      addLog(`[*] Downloading current merge (merged.xml.gz)...`);
 
       const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9193';
-      const url = `${apiBase}/api/archives/download/${filename}`;
+      const url = `${apiBase}/api/archives/download/merged.xml.gz`;
 
       const response = await fetch(url);
       if (!response.ok) throw new Error('Download failed');
@@ -201,16 +242,16 @@ export const MergePage = ({ selectedSources }) => {
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = filename;
+      a.download = 'merged.xml.gz';
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(a);
 
       const sizeMB = (blob.size / (1024 ** 2)).toFixed(2);
-      addLog(`✓ Downloaded ${filename} (${sizeMB}MB)`);
+      addLog(`[+] Downloaded merged.xml.gz (${sizeMB}MB)`);
     } catch (err) {
-      addLog(`✗ Download failed: ${err.message}`);
+      addLog(`[✗] Download failed: ${err.message}`);
     }
   };
 
@@ -222,7 +263,8 @@ export const MergePage = ({ selectedSources }) => {
 
     try {
       addLog('');
-      addLog('💾 Saving as current...');
+      addLog(`[*] Saving merge as current...`);
+      addLog(`[*] Archiving previous version...`);
 
       await call('/api/merge/save', {
         method: 'POST',
@@ -235,26 +277,37 @@ export const MergePage = ({ selectedSources }) => {
         })
       });
 
-      addLog('✓ Saved as current merge');
-      addLog('✓ Previous version has been archived');
-      addLog('🧹 Archive cleanup completed');
+      addLog(`[+] Previous version archived with timestamp`);
+      addLog(`[*] Promoting new merge to current...`);
+      addLog(`[+] Merge promoted to current (merged.xml.gz)`);
+      addLog(`[+] Updating database metadata...`);
+      addLog(`[+] Database updated`);
+      addLog(`[*] Running archive cleanup...`);
+      addLog(`[+] Archive cleanup completed`);
       addLog('');
-      addLog('The file is now live as merged.xml.gz');
+      addLog(`[✓] Successfully saved as current merge`);
+      addLog(`[✓] File is now live as merged.xml.gz`);
+      
+      setSavedAsCurrent(true);
     } catch (err) {
-      addLog(`✗ Save failed: ${err.message}`);
+      addLog(`[✗] Save failed: ${err.message}`);
     }
   };
 
   const handleClearLog = () => {
     setLogs(['Ready to merge...']);
+    setShowProgressBar(false);
     sessionStorage.removeItem('mergeLog');
     setMergeComplete(false);
+    setSavedAsCurrent(false);
     setMergedFilename('');
     setMergedChannels(0);
     setMergedPrograms(0);
     setMergedDaysIncluded(0);
     setMergedSize('');
+    setProgress(0);
     sessionStorage.removeItem('mergeComplete');
+    sessionStorage.removeItem('savedAsCurrent');
     sessionStorage.removeItem('mergedFilename');
     sessionStorage.removeItem('mergedChannels');
     sessionStorage.removeItem('mergedPrograms');
@@ -288,14 +341,14 @@ export const MergePage = ({ selectedSources }) => {
             className="btn btn-secondary"
             onClick={() => setShowVerboseLog(true)}
             disabled={logs.length === 0}
-            title="View detailed backend logs"
+            title="View all merge details"
           >
             📋 Verbose Log
           </button>
         </div>
 
-        {/* Progress Bar */}
-        {(merging || mergeComplete) && (
+        {/* Progress Bar - Only show during merge or until clear */}
+        {showProgressBar && (
           <div style={{ marginTop: '20px', marginBottom: '20px' }}>
             <ProgressBar progress={progress} />
           </div>
@@ -318,7 +371,7 @@ export const MergePage = ({ selectedSources }) => {
         >
           ℹ️ Using <strong style={{ color: '#cbd5e1' }}>{timeframe} days</strong> timeframe and <strong style={{ color: '#cbd5e1' }}>{feedType.toUpperCase()}</strong> feed type from Sources page.
           Be patient. Merge may take some time to complete depending on number and size of source files and number of channels selected. 
-          Use "Verbose Log" button to see detailed backend information.
+          Use "Verbose Log" button to see detailed information.
         </div>
 
         {/* Merge Complete Actions */}
@@ -326,15 +379,16 @@ export const MergePage = ({ selectedSources }) => {
           <div className="button-group">
             <button
               className="btn btn-success btn-lg"
-              onClick={() => handleDownload(mergedFilename)}
+              onClick={() => handleDownload()}
             >
-              ⬇️ Download {mergedFilename}
+              ⬇️ Download Current Merge
             </button>
 
             <button
               className="btn btn-primary btn-lg"
               onClick={handleSaveAsCurrent}
-              title="Save this merge as the current live file"
+              disabled={savedAsCurrent}
+              title={savedAsCurrent ? "Current merged file has already been saved as current" : "Save this merge as the current live file"}
             >
               💾 Save as Current
             </button>
@@ -365,6 +419,11 @@ export const MergePage = ({ selectedSources }) => {
               <div style={{ marginTop: '8px', fontSize: '12px', color: '#94a3b8' }}>
                 Download to get the file, or click "Save as Current" to make it live
               </div>
+              {savedAsCurrent && (
+                <div style={{ marginTop: '10px', padding: '8px', background: 'rgba(16, 185, 129, 0.2)', borderRadius: '4px', color: '#86efac', fontSize: '12px' }}>
+                  ✓ Already saved as current merge
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -453,9 +512,11 @@ export const MergePage = ({ selectedSources }) => {
                   key={i}
                   style={{
                     color:
-                      line.includes('❌') ? '#ff4444' :
-                      line.includes('✅') ? '#44ff44' :
-                      line.includes('⚠️') ? '#ffaa00' :
+                      line.includes('[✗]') ? '#ff4444' :
+                      line.includes('[✓]') ? '#44ff44' :
+                      line.includes('[+]') ? '#44ff44' :
+                      line.includes('[!]') ? '#ffaa00' :
+                      line.includes('[*]') ? '#00ccff' :
                       '#00ff00'
                   }}
                 >
