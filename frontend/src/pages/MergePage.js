@@ -14,7 +14,7 @@ import { X } from 'lucide-react';
  * - Uses saved timeframe from SourcesPage
  * - Archive save and cleanup
  */
-export const MergePage = ({ selectedSources }) => {
+export const MergePage = ({ selectedSources, settings }) => {
   // Retrieve saved timeframe and feedType from localStorage
   const [timeframe] = useLocalStorage('selectedTimeframe', '3');
   const [feedType] = useLocalStorage('selectedFeedType', 'iptv');
@@ -230,10 +230,12 @@ export const MergePage = ({ selectedSources }) => {
   const handleDownload = async () => {
     try {
       addLog('');
-      addLog(`[*] Downloading current merge (merged.xml.gz)...`);
+      // Use settings output_filename, fallback to merged.xml.gz
+      const filename = settings?.output_filename || 'merged.xml.gz';
+      addLog(`[*] Downloading current merge (${filename})...`);
 
       const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9193';
-      const url = `${apiBase}/api/archives/download/merged.xml.gz`;
+      const url = `${apiBase}/api/archives/download/${filename}`;
 
       const response = await fetch(url);
       if (!response.ok) throw new Error('Download failed');
@@ -242,14 +244,14 @@ export const MergePage = ({ selectedSources }) => {
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = 'merged.xml.gz';
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(a);
 
       const sizeMB = (blob.size / (1024 ** 2)).toFixed(2);
-      addLog(`[+] Downloaded merged.xml.gz (${sizeMB}MB)`);
+      addLog(`[+] Downloaded ${filename} (${sizeMB}MB)`);
     } catch (err) {
       addLog(`[✗] Download failed: ${err.message}`);
     }
@@ -279,14 +281,14 @@ export const MergePage = ({ selectedSources }) => {
 
       addLog(`[+] Previous version archived with timestamp`);
       addLog(`[*] Promoting new merge to current...`);
-      addLog(`[+] Merge promoted to current (merged.xml.gz)`);
+      addLog(`[+] Merge promoted to current (${filename})`);
       addLog(`[+] Updating database metadata...`);
       addLog(`[+] Database updated`);
       addLog(`[*] Running archive cleanup...`);
       addLog(`[+] Archive cleanup completed`);
       addLog('');
       addLog(`[✓] Successfully saved as current merge`);
-      addLog(`[✓] File is now live as merged.xml.gz`);
+      addLog(`[✓] File is now live as ${filename}`);
       
       setSavedAsCurrent(true);
     } catch (err) {

@@ -4,7 +4,7 @@ SINGLE SOURCE OF TRUTH - Update this file only
 All other files auto-sync during build/deployment
 """
 
-__version__ = "0.4.2"
+__version__ = "0.4.3"
 __release_date__ = "2025-10-29"
 __author__ = "di5cord20"
 __license__ = "MIT"
