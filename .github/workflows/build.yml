@@ -1,0 +1,26 @@
+name: Build Docker Images
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Build backend image
+        run: docker build -t epg-merge-backend:${{ github.sha }} ./backend
+      
+      - name: Build frontend image
+        run: docker build -t epg-merge-frontend:${{ github.sha }} ./frontend
+      
+      - name: Sanity check - backend
+        run: docker run --rm epg-merge-backend:${{ github.sha }} python -m pytest --version
+      
+      - name: Sanity check - frontend
+        run: docker run --rm epg-merge-frontend:${{ github.sha }} npm --version
+      
+      - name: Report success
+        run: echo "✅ Build complete - backend and frontend images built successfully"
