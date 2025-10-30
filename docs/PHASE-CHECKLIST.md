@@ -1,40 +1,47 @@
-# Phase 4 Stage 2 Checklist
+# Phase 4 Stage 2 - GitHub Actions CI/CD
 
-## GitHub Actions CI/CD Setup
+## Immediate Blockers
+None - ready to start implementation
 
-### [ ] Initial Setup
+## Tasks (In Order)
+
+### Step 1: Create Workflows Directory
 - [ ] Create `.github/workflows/` directory
-- [ ] Create `build.yml` workflow file
-- [ ] Create `test.yml` workflow file
-- [ ] Create `deploy.yml` workflow file (optional)
+- [ ] Commit and push
 
-### [ ] Build Workflow
-- [ ] Trigger on push to main
-- [ ] Build backend Docker image
-- [ ] Build frontend Docker image
+### Step 2: Build Workflow
+- [ ] Create `.github/workflows/build.yml`
+- [ ] Builds backend and frontend on every push
+- [ ] Quick sanity checks (python -m pytest, npm --version)
+- [ ] Test: Push a commit, verify workflow runs
+
+### Step 3: Test Workflow  
+- [ ] Create `.github/workflows/test.yml`
+- [ ] Runs npm test on pull requests only
+- [ ] Includes full 64 test suite
+- [ ] Blocks merge if tests fail
+- [ ] Test: Create PR, verify tests run
+
+### Step 4: Documentation
+- [ ] Update README.md with CI/CD info
+- [ ] Document required GitHub secrets (if any)
+- [ ] Add GitHub Actions badge to README
+
+### Step 5: Registry Integration (Optional)
+- [ ] Set up Docker Hub account (if not done)
+- [ ] Add Docker Hub secrets to GitHub
+- [ ] Create push workflow for main branch
 - [ ] Tag images with version
-- [ ] Run quick sanity check
-
-### [ ] Test Workflow
-- [ ] Trigger on pull requests
-- [ ] Run frontend tests (64 tests)
-- [ ] Run integration tests (32 tests)
-- [ ] Report coverage
-- [ ] Block merge if tests fail
-
-### [ ] Registry Integration
-- [ ] Docker Hub account setup
-- [ ] GitHub secrets for credentials
-- [ ] Push backend image on success
-- [ ] Push frontend image on success
-
-### [ ] Documentation
-- [ ] Update README with CI/CD info
-- [ ] Document GitHub secrets needed
-- [ ] Add badge to README (build status)
 
 ## Completion Criteria
-- ✅ Workflows trigger automatically
-- ✅ All tests run in CI
-- ✅ Images build successfully
-- ✅ Deployment ready (optional)
+- ✅ build.yml works (images build successfully)
+- ✅ test.yml works (tests run, block merge on failure)
+- ✅ README updated
+- ✅ All commits pushed
+
+## Estimated Timeline
+- Build workflow: 15 min
+- Test workflow: 15 min
+- Documentation: 10 min
+- Registry setup: 20 min (optional)
+- **Total: 40-60 min**

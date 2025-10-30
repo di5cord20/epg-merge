@@ -1,66 +1,91 @@
 # EPG Merge - Active Development Context
 
 ## Current Phase
-- **Phase:** 4 Stage 1
+- **Phase:** 4 Stage 2
 - **Version:** v0.4.2-docker
 - **Status:** Docker containerization complete ✅
+- **Next:** GitHub Actions CI/CD Workflow
 
 ## What Just Shipped
-- Backend Dockerfile (Python 3.11, FastAPI)
+- Backend Dockerfile (Python 3.11, FastAPI, non-root user)
 - Frontend Dockerfile (Node 18 + Nginx Alpine)
-- docker-compose.yml orchestration
-- nginx.conf with API proxy
+- docker-compose.yml with 2 containers
+- nginx.conf with API proxy, gzip, security headers
+- Health checks (backend 15s, frontend 10s start period)
 
-## Immediate Next Steps
-1. Phase 4 Stage 2: GitHub Actions CI/CD
-   - Build & test automation
-   - Docker image push to registry
-   - Deployment workflow
+## Phase 4 Stage 2: GitHub Actions CI/CD
 
-2. Known Issues
-   - None blocking current development
+### Tasks (Priority Order)
 
-3. In Progress
-   - Docker health checks verified
-   - All 64 tests passing
-
-## Key Commands
-```bash
-# Development
-sudo docker-compose up -d
-sudo docker-compose logs -f
-sudo docker-compose down
-
-# Testing
-npm test
-npm test -- frontend.test.js
-npm test -- integration.test.js
-
-# Git
-git status
-git add .
-git commit -m "Phase 4 Stage 2: ..."
-git push origin main
+#### 1. Build Workflow (.github/workflows/build.yml)
+```yaml
+name: Build Docker Images
+on: [push]  # Trigger on every push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build backend
+        run: docker build -t epg-merge-backend:${{ github.sha }} ./backend
+      - name: Build frontend
+        run: docker build -t epg-merge-frontend:${{ github.sha }} ./frontend
+      - name: Sanity check backend
+        run: docker run --rm epg-merge-backend:${{ github.sha }} python -m pytest --version
+      - name: Sanity check frontend
+        run: docker run --rm epg-merge-frontend:${{ github.sha }} npm --version
 ```
 
-## File Locations Quick Reference
-- Frontend pages: `frontend/src/pages/`
-- Frontend tests: `frontend/src/__tests__/`
-- Backend: `backend/`
-- Docker: `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile`
-- Config: `.env`, `.dockerignore`
-- Nginx: `frontend/nginx.conf`
+#### 2. Test Workflow (.github/workflows/test.yml)
+```yaml
+name: Run Tests
+on: [pull_request]  # Trigger on PRs only
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test -- --coverage
+      - run: npm test -- integration.test.js
+```
 
-## Recent Git History
-[Last 10 commits from: git log --oneline | head -10]
+#### 3. Registry Push (Optional - Phase 4 Stage 3)
+- Docker Hub credentials via GitHub Secrets
+- Push on main branch only
+- Tag with version
 
-## Open TODOs
-- [ ] Phase 4 Stage 2: GitHub Actions workflow
-- [ ] Phase 4 Stage 3: Production deployment guide
-- [ ] Phase 5: Monitoring & logging setup
+### Known Issues
+- None blocking current work
+
+### Quick Commands
+```bash
+# Run locally
+sudo docker-compose up -d
+sudo docker-compose logs -f
+
+# Run tests
+npm test
+npm test -- --coverage
+
+# Git workflow
+git add .
+git commit -m "Phase 4 Stage 2: [description]"
+git push origin main
+```
 
 ## Test Status
 - ✅ 32 frontend tests passing
 - ✅ 32 integration tests passing
-- ✅ 0 test failures
-- Coverage: Unit + integration layer
+- ✅ 64/64 total (0 failing)
+
+## File Locations
+- Frontend pages: `frontend/src/pages/`
+- Frontend tests: `frontend/src/__tests__/`
+- Backend: `backend/main.py`
+- Docker: `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile`
+- Nginx: `frontend/nginx.conf`
