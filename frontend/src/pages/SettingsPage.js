@@ -259,7 +259,7 @@ export const SettingsPage = () => {
       <div style={sidebarStyle}>
         <div style={{ padding: '0 20px', marginBottom: '20px' }}>
           <h3 style={{ fontSize: '14px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>
-            Sections
+            ⚙️ Settings
           </h3>
         </div>
 
