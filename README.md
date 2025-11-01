@@ -1,3 +1,58 @@
+# EPG Merge Application
+
+> Production-grade TV feed merger with React + FastAPI
+
+## Quick Start
+
+### Docker (Recommended)
+```bash
+git clone https://github.com/di5cord20/epg-merge.git
+cd epg-merge
+cp .env.example .env
+docker-compose up -d
+```
+Visit: http://localhost:9193
+
+### Manual Installation
+```bash
+sudo bash install/install.sh
+```
+
+## Features
+- ✅ Multi-source EPG merging
+- ✅ Channel filtering
+- ✅ Archive management with versioning
+- ✅ Scheduled automated merges
+- ✅ Discord notifications
+- ✅ Smart caching (24hr TTL)
+
+## Documentation
+- 📘 [Quick Reference](docs/QUICK_REFERENCE.md)
+- 🏗️ [Architecture](docs/ARCHITECTURE.md)
+- 🔧 [Local Development](docs/development/LOCAL_DEV.md)
+- 🚀 [Deployment](docs/deployment/DEPLOYMENT.md)
+- 📦 [Release Process](docs/maintenance/RELEASE.md)
+
+## Project Status
+- **Version**: 0.4.3
+- **Status**: Production Ready
+- **Tests**: 64/64 passing
+- **Coverage**: 85%+
+
+## Tech Stack
+- Backend: FastAPI (Python 3.11+)
+- Frontend: React 18.2
+- Database: SQLite
+- Deployment: Docker / Systemd
+
+## License
+MIT License - see [LICENSE](LICENSE)
+
+
+
+
+
+
 # EPG Merge Application - Project Context
 
 ## Purpose

@@ -87,5 +87,6 @@ CHANGELOG.md
 
 # Local development
 local/
+delete/
 scripts/local/
 *.backup

@@ -24,11 +24,13 @@ yarn-error.log*
 
 # App-specific
 /config/
+/data/
 *.db
 *.xml.gz
 xml_cache/
 #archives/
 backups/
+delete/
 .install_config
 .version
 
