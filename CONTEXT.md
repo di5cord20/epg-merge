@@ -481,6 +481,71 @@ GET /api/status
 
 ---
 
+## 📚 Documentation
+
+**Structure:** Flat organization in `/docs` folder (no subdirectories)  
+**Total Files:** 10 main documentation files + 1 historical archive folder  
+**Last Updated:** November 1, 2025  
+**Status:** All current for v0.4.3
+
+### Main Documentation Files
+
+| File | Purpose | Audience |
+|------|---------|----------|
+| `docs/README.md` | Documentation hub and navigation map | Everyone - start here! |
+| `docs/QUICK_START.md` | 5-minute local setup guide | New developers |
+| `docs/ARCHITECTURE.md` | System design, components, database | Developers, architects |
+| `docs/API-SPEC.md` | Complete REST API documentation with examples | Developers, integrators |
+| `docs/DEPLOYMENT.md` | Production deployment workflows and procedures | DevOps, operators |
+| `docs/SCHEDULING.md` | Job scheduling and automation setup | Operators, developers |
+| `docs/DEVELOPMENT.md` | Local dev environment, testing, coding standards | Developers |
+| `docs/TROUBLESHOOTING.md` | Common issues, diagnostics, solutions | Everyone |
+| `docs/MAINTENANCE.md` | Monitoring, backups, updates, database maintenance | Operators |
+| `docs/QUICK_REFERENCE.md` | Commands, templates, checklists | Developers, operators |
+
+### Historical Archive
+
+- `docs/archive/` - Previous documentation versions (preserved for reference)
+  - Contains: CONTEXT-ACTIVE.md, CONTEXT_CURRENT.md, DESIGN-PATTERNS.md, etc.
+  - Purpose: Historical reference, not used in current workflows
+
+### How Docs Are Organized
+
+The docs are organized by **user task**, not by system component:
+
+1. **New user?** → Start with `docs/README.md`, then `docs/QUICK_START.md`
+2. **Want to understand the system?** → Read `docs/ARCHITECTURE.md`
+3. **Need to integrate via API?** → See `docs/API-SPEC.md`
+4. **Setting up production?** → Follow `docs/DEPLOYMENT.md`
+5. **Stuck with an issue?** → Check `docs/TROUBLESHOOTING.md`
+6. **Contributing code?** → See `docs/DEVELOPMENT.md`
+
+### Key Features
+
+- ✅ **No duplication** - Each topic documented once, in the right place
+- ✅ **Flat structure** - All docs at same level, easy to navigate
+- ✅ **Cross-linked** - Clear links between related topics
+- ✅ **Copy-paste ready** - Commands, code examples, templates ready to use
+- ✅ **Version aligned** - All current for v0.4.3
+
+### Recent Documentation Changes (v0.4.3)
+
+**What changed:**
+- Consolidated 8 files from `deployment/`, `development/`, `maintenance/` directories
+- Eliminated 100% of documentation duplication
+- Created new QUICK_START.md for onboarding
+- Created new SCHEDULING.md for job automation
+- Expanded MAINTENANCE.md with comprehensive guidance
+- Expanded API-SPEC.md with all current endpoints
+- Updated README.md to serve as documentation hub
+
+**File count reduction:**
+- Before: 18 files across 4 directories (46.9 KB)
+- After: 10 files in flat structure (31 KB)
+- Reduction: 58% fewer files, zero duplication
+
+---
+
 ## 🧪 Testing
 
 **Frontend Tests (64 total):**
@@ -614,7 +679,7 @@ execution_time_seconds REAL
 
 | Version | Date | Major Changes |
 |---------|------|---------------|
-| 0.4.3 | Nov 1, 2025 | (Latest - your work) |
+| 0.4.3 | Nov 1, 2025 | Documentation cleanup: consolidated 8 files, flat structure, zero duplication |
 | 0.4.2 | Oct 29, 2025 | Component refactoring, archive retention cleanup |
 | 0.4.1 | Oct 29, 2025 | Backend persistence, version centralization |
 | 0.4.0 | Oct 29, 2025 | Cron job infrastructure |
@@ -662,10 +727,12 @@ bash /opt/epg-merge-app/scripts/build.sh            # Rebuild
 
 ## 📞 Support Resources
 
-- **Docs Folder:** See `docs/` for detailed guides
+- **Documentation:** See `docs/README.md` for docs index - **START HERE!**
+- **Quick Start:** `docs/QUICK_START.md` - 5-minute setup
+- **API Help:** `docs/API-SPEC.md` - All endpoints with examples
+- **Troubleshooting:** `docs/TROUBLESHOOTING.md` - Common issues
 - **Issue Tracker:** GitHub Issues
-- **Email:** [Your contact]
-- **This File:** Update CONTEXT.md after each commit to keep it current
+- **Logs:** `journalctl -u epg-merge -f`
 
 ---
 
