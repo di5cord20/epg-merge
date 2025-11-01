@@ -31,6 +31,7 @@ xml_cache/
 #archives/
 backups/
 delete/
+docs/archives
 .install_config
 .version
 
