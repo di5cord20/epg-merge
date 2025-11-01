@@ -5,16 +5,17 @@ import { ArchivesTable } from './archives/ArchivesTable';
 import { ArchivesLegend } from './archives/ArchivesLegend';
 
 /**
- * ArchivesPage - v0.4.2 (Phase 2 Refactored)
+ * ArchivesPage - v0.4.4 (Updated for new directory structure)
  * Main orchestrator for archives management
  * Handles data fetching, sorting, and delegating to sub-components
+ * Works with /data/current/ and /data/archives/ structure
  */
 export const ArchivesPage = () => {
   const [archives, setArchives] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(null);
-  const [sortBy, setSortBy] = useState('date');
+  const [sortBy, setSortBy] = useState('type'); // 'type' sorts current first, then by date
   const [sortOrder, setSortOrder] = useState('desc');
   const { call } = useApi();
 
@@ -77,6 +78,9 @@ export const ArchivesPage = () => {
   const handleDownload = async (filename) => {
     try {
       const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9193';
+      
+      // Archives page always downloads the exact filename as stored on disk
+      // is_current files are in /data/current/, archived files are in /data/archives/
       const url = `${apiBase}/api/archives/download/${filename}`;
       
       const response = await fetch(url);
@@ -121,6 +125,15 @@ export const ArchivesPage = () => {
     let compareValue = 0;
     
     switch (sortBy) {
+      case 'type':
+        // Sort by: current files first (is_current=true), then archives
+        // Within each group, sort by date descending
+        if (a.is_current === b.is_current) {
+          compareValue = new Date(b.created_at) - new Date(a.created_at);
+        } else {
+          compareValue = a.is_current ? -1 : 1;
+        }
+        break;
       case 'date':
         compareValue = new Date(b.created_at) - new Date(a.created_at);
         break;
@@ -207,7 +220,7 @@ export const ArchivesPage = () => {
         <div style={headerStyle}>
           <div>
             <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
-              Manage merged EPG files and historical versions
+              Manage current and historical merged EPG files
             </p>
           </div>
           <button

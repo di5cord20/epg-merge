@@ -18,13 +18,28 @@ class Config:
         # For production: /config (standard location)
         if self.environment == "development":
             # Go up one level from backend/ to project root
+            default_data_dir = str(Path(__file__).parent.parent / "data")
+        else:
+            default_data_dir = "/data"
+        
+        # Data directory structure
+        self.data_dir = Path(os.getenv("DATA_DIR", default_data_dir))
+        self.tmp_dir = Path(os.getenv("TMP_DIR", self.data_dir / "tmp"))
+        self.current_dir = Path(os.getenv("CURRENT_DIR", self.data_dir / "current"))
+        self.archive_dir = Path(os.getenv("ARCHIVE_DIR", self.data_dir / "archives"))
+        
+        # Config and cache
+        if self.environment == "development":
             default_config_dir = str(Path(__file__).parent.parent / "config")
         else:
             default_config_dir = "/config"
         self.config_dir = Path(os.getenv("CONFIG_DIR", default_config_dir))
-        self.archive_dir = Path(os.getenv("ARCHIVE_DIR", self.config_dir / "archives"))
         self.cache_dir = Path(os.getenv("CACHE_DIR", self.config_dir / "epg_cache"))
+        
+        # Database
         self.db_path = Path(os.getenv("DB_PATH", self.config_dir / "app.db"))
+        
+        # Server settings
         self.port = int(os.getenv("SERVICE_PORT", 9193))
         self.workers = int(os.getenv("WORKERS", 1))
         self.log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -36,15 +51,25 @@ class Config:
     
     def _ensure_directories(self) -> None:
         """Create required directories if they don't exist"""
-        for directory in [self.config_dir, self.archive_dir, self.cache_dir]:
+        for directory in [
+            self.data_dir,
+            self.tmp_dir,
+            self.current_dir,
+            self.archive_dir,
+            self.config_dir,
+            self.cache_dir
+        ]:
             directory.mkdir(parents=True, exist_ok=True)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary for inspection"""
         return {
             "environment": self.environment,
-            "config_dir": str(self.config_dir),
+            "data_dir": str(self.data_dir),
+            "tmp_dir": str(self.tmp_dir),
+            "current_dir": str(self.current_dir),
             "archive_dir": str(self.archive_dir),
+            "config_dir": str(self.config_dir),
             "cache_dir": str(self.cache_dir),
             "db_path": str(self.db_path),
             "port": self.port,

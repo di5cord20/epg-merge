@@ -26,7 +26,7 @@ function App() {
       case 'channels':
         return <ChannelsPage selectedSources={selectedSources} />;
       case 'merge':
-        return <MergePage selectedSources={selectedSources} settings={settings} />
+        return <MergePage selectedSources={selectedSources} />
       case 'archives':
         return <ArchivesPage />;
       case 'dashboard':

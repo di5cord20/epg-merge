@@ -4,6 +4,75 @@ All notable changes to the EPG Merge Application are documented in this file.
 
 ---
 
+## [0.4.4] - 2025-11-01
+
+### Added
+- **Configurable Output Filename** - Users can set custom EPG output filename in Settings (default: merged.xml.gz)
+- **New Directory Structure** - Reorganized data storage:
+  - `/data/tmp/` - Temporary merge files
+  - `/data/current/` - Current live file
+  - `/data/archives/` - Timestamped archive backups
+- **New API Endpoints:**
+  - `GET /api/merge/download/{filename}` - Download temporary merge file from /data/tmp/
+  - `POST /api/merge/clear-temp` - Clear temporary merge files
+- **Archive Timestamp Naming** - Archives now include creation timestamp: `{filename}.YYYYMMDD_HHMMSS`
+- **Improved Merge Workflow:**
+  - Temporary files kept after "Save as Current" for continued downloads
+  - Temp files automatically cleared on next "Start Merge" or "Clear Log"
+  - Users can download merge at any stage of workflow
+- **Smart Archive Management** - Archives ALL files in /data/current/ when saving (handles filename changes)
+- **Fresh Settings Fetching** - MergePage fetches current settings before merge/download/save (fixes stale props issue)
+- **56+ Integration Tests** - Complete test coverage for Phase 3 merge workflow
+
+### Changed
+- **Merge File Handling** - Changed from move to copy strategy:
+  - Before: `/data/tmp/file` → `/data/current/file` (deleted from tmp)
+  - After: `/data/tmp/file` → `/data/current/file` (copy, file stays in tmp)
+- **Archive Strategy** - Archives now store with timestamp suffix for version history:
+  - Before: `merged.xml.gz.{timestamp}`
+  - After: `{configured_filename}.{timestamp}`
+- **Download Endpoint** - Moved from `/api/archives/download/` to `/api/merge/download/` for temp files
+- **Settings Integration** - Output_filename now properly fetched fresh from backend (not cached props)
+- **ArchivesPage Default Sort** - Current files now display first, then archives (by is_current flag)
+
+### Fixed
+- **Download After Save** - Users can now download merge after clicking "Save as Current" ✓
+- **Filename Change Handling** - Old current files properly archived when output_filename changes ✓
+- **Stale Settings** - MergePage now fetches fresh settings before each operation ✓
+- **Multiple Files in Current** - Only one file now exists in /data/current/ at a time ✓
+- **Clear Log Cleanup** - Properly cleans /data/tmp/ without affecting current or archives ✓
+
+### Technical Details
+- **Backend Changes:**
+  - `config.py` - New directory configuration (tmp_dir, current_dir)
+  - `merge_service.py` - Refactored execute_merge(), save_merge(), added clear_temp_files()
+  - `main.py` - Added /api/merge/download/ and /api/merge/clear-temp endpoints
+  - `archive_service.py` - Updated for new directory structure
+- **Frontend Changes:**
+  - `MergePage.js` - Fresh settings fetching, new download endpoint, clear-temp integration
+  - `ArchivesPage.js` - Current files first sorting, both directory support
+- **Test Coverage:**
+  - `test_merge_api.py` - 28 new integration tests for Phase 3 workflow
+  - All existing tests maintained and passing (total: 56+)
+
+### Database
+- No schema changes
+- New setting key: `output_filename` (default: "merged.xml.gz")
+
+### Deployment Notes
+- Create `/data/tmp/`, `/data/current/`, `/data/archives/` directories
+- Set appropriate permissions (755 for read/write)
+- Old `/config/archives/` directory can be migrated to `/data/archives/`
+- No breaking changes to existing API
+
+### Testing Status
+- ✅ 56+ integration tests passing
+- ✅ 5/5 manual workflows validated
+- ✅ All API endpoints tested
+- ✅ Directory structure validated
+
+---
+
 ## [0.4.3] - 2025-11-01
 
 ### Changed
@@ -363,6 +432,6 @@ Starting with v0.4.1, version is managed from a **single source of truth**:
 
 ---
 
-**Latest Version:** 0.4.3  
+**Latest Version:** 0.4.4  
 **Maintainer:** di5cord20  
 **Repository:** https://github.com/di5cord20/epg-merge

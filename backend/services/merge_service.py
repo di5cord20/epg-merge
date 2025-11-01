@@ -1,6 +1,6 @@
 """
-EPG Merge - Merge Service (v0.3.2)
-Handles XML merging logic with timeframe tracking for Days Included
+EPG Merge - Merge Service (v0.4.4)
+Handles XML merging logic with timeframe tracking and configurable output filename
 """
 
 import gzip
@@ -33,11 +33,11 @@ class MergeService(BaseService):
     async def execute_merge(self, data: dict) -> Dict[str, Any]:
         """Execute merge of selected sources with channel filtering
         
-        Creates a TEMPORARY merge file with timestamp, allowing user to review
-        before promoting to current via "Save as Current" button
+        Creates a temporary merge file in /data/tmp/ using configured output filename,
+        allowing user to review before promoting to current via "Save as Current" button
         
         Args:
-            data: Dictionary with sources, channels, timeframe, feed_type
+            data: Dictionary with sources, channels, timeframe, feed_type, output_filename
         
         Returns:
             Dictionary with merge results including temporary filename
@@ -49,6 +49,7 @@ class MergeService(BaseService):
             channels = data.get('channels', [])
             timeframe = data.get('timeframe', '3')
             feed_type = data.get('feed_type', 'iptv')
+            output_filename = data.get('output_filename', 'merged.xml.gz')
             
             # SAFETY FIX: Strip quotes if timeframe was double-encoded
             if isinstance(timeframe, str):
@@ -65,8 +66,18 @@ class MergeService(BaseService):
             except ValueError as e:
                 raise ValueError(f"Invalid timeframe: {timeframe} - {str(e)}")
             
+            # STEP 0: Clear old temporary files from /data/tmp/
             self.logger.info(f"")
             self.logger.info(f"================== MERGE EXECUTION STARTED ==================")
+            self.logger.info(f"Clearing old temporary files from /data/tmp/...")
+            try:
+                for file in self.config.tmp_dir.glob("*.xml.gz*"):
+                    file.unlink()
+                    self.logger.info(f"  ✓ Deleted: {file.name}")
+            except Exception as e:
+                self.logger.warning(f"  ⚠️  Could not clear all temp files: {e}")
+            
+            self.logger.info(f"")
             self.logger.info(f"Merge Configuration:")
             self.logger.info(f"  Sources: {len(sources)}")
             self.logger.info(f"  Channels to filter: {len(channels)}")
@@ -74,10 +85,9 @@ class MergeService(BaseService):
             self.logger.info(f"  Feed type: {feed_type}")
             self.logger.info(f"")
             
-            # IMPORTANT: Generate UNIQUE temporary filename with timestamp
-            # This allows multiple merges without overwriting each other
-            merge_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            temp_filename = f"merged_{merge_timestamp}.xml.gz"
+            # Create temporary file in /data/tmp/ with configured filename
+            # (No timestamp on temp file - gets cleaned before next merge)
+            temp_filename = output_filename
             
             self.logger.info(f"  Output (temporary): {temp_filename}")
             self.logger.info(f"")
@@ -189,8 +199,8 @@ class MergeService(BaseService):
         self.logger.info(f"  Programmes included: {len(programmes_seen)}")
         self.logger.info(f"")
         
-        # Write output
-        output_path = self.config.archive_dir / output_filename
+        # Write output to /data/tmp/
+        output_path = self.config.tmp_dir / output_filename
         self.logger.info(f"Writing output file...")
         
         xml_bytes = ET.tostring(merged_root, encoding='utf-8', xml_declaration=True)
@@ -314,28 +324,32 @@ class MergeService(BaseService):
         return downloaded
     
     def get_current_merge_info(self) -> Dict[str, Any]:
-        """Get current live merged file info
+        """Get current live merged file info from /data/current/
         
         Returns:
             Dictionary with file information
         """
-        current = self.config.archive_dir / "merged.xml.gz"
+        # Import settings service to get configured filename
+        from services.settings_service import SettingsService
+        settings_service = SettingsService(self.db)
+        output_filename = settings_service.get_output_filename()
+        
+        current = self.config.current_dir / output_filename
         if current.exists():
             stat = current.stat()
             return {
-                "filename": "merged.xml.gz",
+                "filename": output_filename,
                 "exists": True,
                 "size": f"{stat.st_size / (1024**2):.2f}MB",
                 "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
             }
-        return {"filename": "merged.xml.gz", "exists": False}
+        return {"filename": output_filename, "exists": False}
     
     def save_merge(self, data: dict) -> Dict[str, Any]:
-        """Save merge and archive previous version with proper metadata handling
+        """Save merge and archive previous version with configurable filename
         
         Args:
             data: Dictionary with:
-                - filename: Current merge filename to save as current
                 - channels: Number of channels
                 - programs: Number of programs
                 - days_included: Timeframe (3, 7, or 14 days)
@@ -343,53 +357,55 @@ class MergeService(BaseService):
         Returns:
             Status dictionary
         """
-        import shutil
         from datetime import datetime
+        from services.settings_service import SettingsService
         
-        filename = data.get('filename', 'merged.xml.gz')
         channels = data.get('channels', 0)
         programs = data.get('programs', 0)
         days_included = data.get('days_included', 0)
         
-        # Source file (the newly merged file)
-        merged_path = self.config.archive_dir / filename
+        # Get configured output filename from settings
+        settings_service = SettingsService(self.db)
+        output_filename = settings_service.get_output_filename()
+        
+        # Source file (the newly merged file from /data/tmp/)
+        merged_path = self.config.tmp_dir / output_filename
         
         if not merged_path.exists():
-            raise FileNotFoundError(f"File {filename} not found in {self.config.archive_dir}")
+            raise FileNotFoundError(f"File {output_filename} not found in {self.config.tmp_dir}")
         
-        # Current live file path
-        current_path = self.config.archive_dir / "merged.xml.gz"
+        # Current live file path in /data/current/
+        current_path = self.config.current_dir / output_filename
         
-        self.logger.info(f"💾 Saving merge: {filename}")
+        self.logger.info(f"💾 Saving merge: {output_filename}")
         self.logger.info(f"   Source: {merged_path.name}")
-        self.logger.info(f"   Target: merged.xml.gz")
+        self.logger.info(f"   Target: /data/current/{output_filename}")
         
-        # STEP 1: Archive the PREVIOUS version if it exists
-        if current_path.exists() and current_path != merged_path:
-            self.logger.info(f"📦 Archiving previous version...")
-            
-            # Get creation time of the current file
-            creation_time = datetime.fromtimestamp(current_path.stat().st_mtime)
+        # STEP 1: Archive ALL existing files in /data/current/ (regardless of filename)
+        self.logger.info(f"📦 Archiving any previous version...")
+        archived_count = 0
+        
+        for existing_file in self.config.current_dir.glob("*.xml.gz"):
+            # Get creation time of the existing file
+            creation_time = datetime.fromtimestamp(existing_file.stat().st_mtime)
             timestamp = creation_time.strftime("%Y%m%d_%H%M%S")
-            archive_path = self.config.archive_dir / f"merged.xml.gz.{timestamp}"
+            archive_path = self.config.archive_dir / f"{existing_file.name}.{timestamp}"
             
-            self.logger.info(f"   Archive: {archive_path.name}")
+            self.logger.info(f"   Archiving: {existing_file.name} → {archive_path.name}")
             
-            # Move previous current to archive with timestamp
-            shutil.move(str(current_path), str(archive_path))
+            # Move to archive with timestamp
+            shutil.move(str(existing_file), str(archive_path))
+            archived_count += 1
             
             # Save metadata for archived file from database
-            # Try to get existing metadata, otherwise use defaults (0 if not available)
             try:
                 if self.db:
-                    archive_data = self.db.get_archive("merged.xml.gz")
+                    archive_data = self.db.get_archive(existing_file.name)
                     if archive_data:
                         archive_channels = archive_data.get('channels', 0)
                         archive_programs = archive_data.get('programs', 0)
                         archive_days = archive_data.get('days_included', 0)
                     else:
-                        # No metadata found - use zeros
-                        self.logger.info(f"   No metadata found for previous version, using defaults")
                         archive_channels = 0
                         archive_programs = 0
                         archive_days = 0
@@ -402,19 +418,20 @@ class MergeService(BaseService):
                         archive_days,
                         archive_size
                     )
-                    self.logger.info(f"   ✓ Archive metadata saved: {archive_channels}ch, {archive_programs}prog, {archive_days}d")
             except Exception as e:
                 self.logger.warning(f"   ⚠️  Could not save archive metadata: {e}")
         
-        # STEP 2: Move/copy the new file to current location
-        if filename != "merged.xml.gz":
-            self.logger.info(f"📋 Setting new file as current...")
-            
-            # Move the source file to merged.xml.gz
-            shutil.move(str(merged_path), str(current_path))
-            self.logger.info(f"   ✓ Moved to merged.xml.gz")
+        if archived_count == 0:
+            self.logger.info(f"   No previous version to archive")
         else:
-            self.logger.info(f"   File already named merged.xml.gz, keeping as current")
+            self.logger.info(f"   ✓ Archived {archived_count} previous file(s)")
+        
+        # STEP 2: COPY (not move) new file from /data/tmp/ to /data/current/
+        # This keeps the file in /data/tmp/ so user can still download
+        self.logger.info(f"📋 Setting new file as current...")
+        shutil.copy2(str(merged_path), str(current_path))
+        self.logger.info(f"   ✓ Copied to /data/current/{output_filename}")
+        self.logger.info(f"   ℹ️  Original kept in /data/tmp/{output_filename} for download")
         
         # STEP 3: Verify current file exists and save metadata
         if not current_path.exists():
@@ -424,7 +441,7 @@ class MergeService(BaseService):
             if self.db:
                 file_size = current_path.stat().st_size
                 self.db.save_archive(
-                    "merged.xml.gz",
+                    output_filename,
                     channels,
                     programs,
                     days_included,
@@ -439,13 +456,47 @@ class MergeService(BaseService):
         return {
             "status": "success",
             "message": "Merge saved successfully",
-            "current_file": "merged.xml.gz",
+            "current_file": output_filename,
             "channels": channels,
             "programs": programs,
             "days_included": days_included,
             "archived": True
         }
 
+    def clear_temp_files(self) -> Dict[str, Any]:
+        """Clear all temporary merge files from /data/tmp/
+        
+        Called when user clears merge log or starts new session
+        
+        Returns:
+            Cleanup statistics
+        """
+        deleted_count = 0
+        freed_bytes = 0
+        
+        self.logger.info(f"Clearing temporary merge files from /data/tmp/...")
+        
+        try:
+            for file in self.config.tmp_dir.glob("*.xml.gz*"):
+                try:
+                    size = file.stat().st_size
+                    file.unlink()
+                    deleted_count += 1
+                    freed_bytes += size
+                    self.logger.info(f"  ✓ Deleted: {file.name}")
+                except Exception as e:
+                    self.logger.error(f"  ✗ Error deleting {file.name}: {e}")
+        except Exception as e:
+            self.logger.error(f"Cleanup temp files failed: {e}")
+        
+        freed_mb = round(freed_bytes / (1024**2), 2)
+        self.logger.info(f"Temp cleanup complete: {deleted_count} files deleted, {freed_mb}MB freed")
+        
+        return {
+            "deleted": deleted_count,
+            "freed_bytes": freed_bytes,
+            "freed_mb": freed_mb
+        }
 
     def _cleanup_old_archives(self, retention_days: int) -> Dict[str, Any]:
         """Delete archives older than retention policy

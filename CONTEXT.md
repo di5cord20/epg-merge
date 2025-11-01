@@ -3,7 +3,7 @@
 ---
 
 ⚠️ **IMPORTANT:** Update this file after each commit to keep it current for future AI conversations.  
-**Last Updated:** November 1, 2025
+**Last Updated:** November 1, 2025 (v0.4.4 Complete)
 
 ---
 
@@ -195,9 +195,9 @@ I'm ready to proceed to Phase 1 and provide files.
 
 ## 📊 Current Project State
 
-**Current Version:** 0.4.3  
-**Last Updated:** November 1, 2025  
-**Status:** Production Ready | Tests: 64/64 passing
+**Current Version:** 0.4.4  
+**Last Updated:** November 1, 2025 (Phase 3 Complete)  
+**Status:** Production Ready | Tests: 56+/56+ passing
 
 ---
 
@@ -227,22 +227,31 @@ Testing:   Jest (frontend) + Pytest (backend) - 64 tests passing
 ┌─────────────────────────────────────────┐
 │ Frontend (React 18)                     │
 │ - 6 Pages + 10 Sub-components           │
-│ - 3 Custom Hooks                        │
-│ - Inline CSS (dark mode)                │
+│ - Fetches fresh settings before merge   │
+│ - Download from /api/merge/download/    │
+│ - Clear Log calls /api/merge/clear-temp │
 └────────────────┬────────────────────────┘
                  │ HTTP REST API
                  ↓
 ┌────────────────────────────────────────┐
 │ Backend (FastAPI)                      │
 │ - 6 Services (business logic)          │
-│ - 13 API endpoints                     │
-│ - Database layer (SQLite)              │
-└────────────────────────────────────────┘
+│ - 15 API endpoints (13 + 2 new)        │
+│ - Configurable output_filename         │
+│ - New directory structure (/data/*)    │
+│ - Copy not move workflow               │
+└────────────────┬─────────────────────────┘
                  │
-                 ↓
-        ┌────────────────┐
-        │ SQLite (app.db)│
-        └────────────────┘
+        ┌────────┴────────┐
+        ↓                 ↓
+    /data/tmp/      /data/current/
+  (temporary)        (live file)
+        │                 │
+        └─────────────────┤
+                          ↓
+                   /data/archives/
+                  (timestamped backups)
+                 + /config/app.db
 ```
 
 ---
@@ -281,28 +290,42 @@ Testing:   Jest (frontend) + Pytest (backend) - 64 tests passing
 
 ---
 
-### Feature: Merge Execution & Progress
+### Feature: Merge Execution & Download (v0.4.4 Updated)
 **Files:**
-- `frontend/src/pages/MergePage.js` - Merge UI with progress, logs, download
-- `backend/services/merge_service.py` - Core merge logic (iterparse XML streaming)
-- `frontend/src/components/Terminal.js` - Log display with color coding
-- `frontend/src/components/ProgressBar.js` - Progress visualization
-- `backend/main.py` → `/api/merge/execute` - Merge endpoint
-- `backend/main.py` → `/api/merge/save` - Save as current endpoint
+- `frontend/src/pages/MergePage.js` (v0.4.4)
+  - Fetches fresh settings before merge
+  - Download uses `/api/merge/download/` endpoint (NEW)
+  - Download uses configured filename
+  - Clear Log calls `/api/merge/clear-temp` (NEW)
+- `backend/services/merge_service.py` (v0.4.4)
+  - `execute_merge()` - Clears `/data/tmp/`, creates temp file with output_filename
+  - `_merge_xml_files()` - Writes to `/data/tmp/`
+  - `save_merge()` - Copies (not moves) to `/data/current/`, archives all existing files
+  - `clear_temp_files()` - Clears `/data/tmp/` directory (NEW)
+- `backend/config.py` (v0.4.4)
+  - New directory paths: tmp_dir, current_dir, archive_dir (moved from /config to /data)
+- `backend/main.py` (v0.4.4)
+  - `POST /api/merge/execute` - Accept output_filename parameter
+  - `GET /api/merge/download/{filename}` - NEW endpoint, download from /data/tmp/
+  - `POST /api/merge/clear-temp` - NEW endpoint, clear temporary files
 
 **What it does:**
-1. Downloads XML files with smart caching (HTTP HEAD checks)
-2. Uses iterparse for memory-efficient streaming
-3. Filters channels by ID, deduplicates programs
-4. Creates temporary timestamped file for review
-5. User can download or "Save as Current" (archives previous)
+1. User starts merge → Backend clears `/data/tmp/`, fetches configured output_filename
+2. Merge creates temp file: `/data/tmp/{output_filename}`
+3. User downloads → Backend serves from `/data/tmp/{output_filename}`
+4. User clicks "Save as Current":
+   - Archives ALL existing files in `/data/current/` to `/data/archives/` with timestamp
+   - Copies `/data/tmp/{output_filename}` to `/data/current/{output_filename}` (temp stays)
+5. User can download again → Still works from `/data/tmp/`
+6. User clicks "Clear Log" → `/data/tmp/` cleared, session storage reset
 
-**Key Logic:**
-- Temp file naming: `merged_YYYYMMDD_HHMMSS.xml.gz`
-- Current file: `merged.xml.gz`
-- Archive format: `merged.xml.gz.YYYYMMDD_HHMMSS`
+**Key Changes from v0.4.3:**
+- Temp file now uses configured output_filename instead of hardcoded "merged_TIMESTAMP.xml.gz"
+- Temp file kept after save (copy not move)
+- Download works at any stage of workflow
+- Archive all files on filename change (not just same-name files)
 
-**To modify:** `merge_service.py` for merge logic, `MergePage.js` for UI/UX, Terminal/ProgressBar for display.
+**To modify:** `merge_service.py` for merge logic, `MergePage.js` for UI/UX, `config.py` for directory paths.
 
 ---
 
@@ -316,10 +339,12 @@ Testing:   Jest (frontend) + Pytest (backend) - 64 tests passing
 - `backend/database.py` - Archives table schema
 
 **What it does:**
-1. Lists current file + all timestamped archives with metadata
-2. Shows color-coded "Days Left" urgency (Green→Orange→Red)
-3. Supports download and delete (prevents deleting current)
-4. Automatic cleanup based on retention policy
+1. Lists current file (from `/data/current/`) + all timestamped archives (from `/data/archives/`)
+2. Shows current file first with green indicator, then archives below
+3. Shows color-coded "Days Left" urgency (Green→Orange→Red)
+4. Supports download and delete (prevents deleting current)
+5. Automatic cleanup based on retention policy
+6. Handles filename changes gracefully (old files archived with old names)
 
 **Database:**
 ```sql
@@ -353,7 +378,7 @@ CREATE TABLE archives (
 
 **Settings Keys:**
 ```python
-output_filename: string (default: "merged.xml.gz")
+output_filename: string (default: "merged.xml.gz") # v0.4.4: UPDATED - now used in merge workflow
 merge_schedule: "daily" | "weekly"
 merge_time: "HH:MM" (UTC)
 merge_days: JSON array of 0-6 (weekdays)
@@ -443,16 +468,36 @@ POST /api/channels/export
 POST /api/channels/import
 ```
 
-### Merge
+### Merge (NEW/UPDATED - v0.4.4)
 ```
 POST /api/merge/execute
-GET  /api/merge/current
+  Request: { sources, channels, timeframe, feed_type, output_filename }
+  Response: { filename, channels_included, programs_included, file_size, days_included }
+  Location: /data/tmp/{output_filename}
+
+GET /api/merge/download/{filename}
+  NEW v0.4.4 - Download from /data/tmp/
+  Response: File blob (gzipped XML)
+
+GET /api/merge/current
+  Response: { filename, exists, size?, modified? }
+  Location: /data/current/{output_filename}
+
 POST /api/merge/save
+  Request: { channels, programs, days_included }
+  Action: Archives /data/current/* → /data/archives/, Copies /data/tmp/ → /data/current/*
+  Response: { status, current_file, archived }
+
+POST /api/merge/clear-temp
+  NEW v0.4.4 - Clear temporary files
+  Response: { deleted, freed_bytes, freed_mb }
 ```
 
 ### Archives
 ```
 GET /api/archives/list
+  Response: { archives: [ { filename, is_current, ... } ] }
+  Order: Current files first (/data/current/), then timestamped archives (/data/archives/)
 GET /api/archives/download/{filename}
 DELETE /api/archives/delete/{filename}
 POST /api/archives/cleanup
@@ -679,6 +724,7 @@ execution_time_seconds REAL
 
 | Version | Date | Major Changes |
 |---------|------|---------------|
+| 0.4.4 | Nov 1, 2025 | Configurable filename, new directory structure, copy workflow, 56+ tests |
 | 0.4.3 | Nov 1, 2025 | Documentation cleanup: consolidated 8 files, flat structure, zero duplication |
 | 0.4.2 | Oct 29, 2025 | Component refactoring, archive retention cleanup |
 | 0.4.1 | Oct 29, 2025 | Backend persistence, version centralization |
@@ -699,6 +745,10 @@ execution_time_seconds REAL
 **Smart Caching:** HTTP HEAD to check if remote file changed before redownloading
 **Archive Workflow:** Temp file → Review → "Save as Current" → Previous archived
 **Days Left:** Calculated as `created_at + days_included - today`
+**Directory Structure (v0.4.4):** /data/tmp/ (temp), /data/current/ (live), /data/archives/ (backups)
+**Merge Workflow (v0.4.4):** Temp file created → Download → Save as Current (copies, not moves) → Archive previous
+**Filename Strategy (v0.4.4):** Configured in Settings, archives use: {filename}.{timestamp}
+**Fresh Settings:** MergePage fetches settings before each operation (merge/download/save)
 
 ---
 

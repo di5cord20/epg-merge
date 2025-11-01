@@ -13,6 +13,7 @@ import { X } from 'lucide-react';
  * - Session persistence (survive page navigation)
  * - Uses saved timeframe from SourcesPage
  * - Archive save and cleanup
+ * - Configurable output filename from settings
  */
 export const MergePage = ({ selectedSources, settings }) => {
   // Retrieve saved timeframe and feedType from localStorage
@@ -131,17 +132,36 @@ export const MergePage = ({ selectedSources, settings }) => {
     setMergedFilename('');
     
     try {
+      // Fetch fresh settings from API to get latest output_filename
+      let outputFilename = 'merged.xml.gz';
+      try {
+        const settingsResponse = await fetch(
+          process.env.REACT_APP_API_BASE 
+            ? `${process.env.REACT_APP_API_BASE}/api/settings/get`
+            : 'http://localhost:9193/api/settings/get'
+        );
+        if (settingsResponse.ok) {
+          const freshSettings = await settingsResponse.json();
+          outputFilename = freshSettings.output_filename || 'merged.xml.gz';
+        }
+      } catch (err) {
+        console.warn('Could not fetch fresh settings, using default:', err);
+        outputFilename = settings?.output_filename || 'merged.xml.gz';
+      }
+      
       addVerboseLog(`[*] Initializing merge process`);
       addVerboseLog(`[*] Configuration:`);
       addVerboseLog(`    - Sources: ${selectedSources.length} files`);
       addVerboseLog(`    - Channels to filter: ${channels.length}`);
       addVerboseLog(`    - Timeframe: ${timeframe} days`);
       addVerboseLog(`    - Feed type: ${feedType.toUpperCase()}`);
+      addVerboseLog(`    - Output filename: ${outputFilename}`);
       
       addLog(`📁 Sources: ${selectedSources.length}`);
       addLog(`📺 Channels: ${channels.length}`);
       addLog(`📅 Timeframe: ${timeframe} days`);
       addLog(`📡 Feed Type: ${feedType.toUpperCase()}`);
+      addLog(`📝 Output: ${outputFilename}`);
       addLog('');
       addLog('⏳ Executing merge...');
       addLog('');
@@ -160,14 +180,15 @@ export const MergePage = ({ selectedSources, settings }) => {
         });
       }, 800);
       
-      // Make the merge request with saved timeframe and feedType
+      // Make the merge request with saved timeframe, feedType, and output filename
       const data = await call('/api/merge/execute', {
         method: 'POST',
         body: JSON.stringify({
           sources: selectedSources,
           channels: channels,
           timeframe: timeframe,
-          feed_type: feedType
+          feed_type: feedType,
+          output_filename: outputFilename
         })
       });
       
@@ -230,12 +251,29 @@ export const MergePage = ({ selectedSources, settings }) => {
   const handleDownload = async () => {
     try {
       addLog('');
-      // Use settings output_filename, fallback to merged.xml.gz
-      const filename = settings?.output_filename || 'merged.xml.gz';
-      addLog(`[*] Downloading current merge (${filename})...`);
+      
+      // Fetch fresh settings from API to get latest output_filename
+      let downloadFilename = 'merged.xml.gz';
+      try {
+        const settingsResponse = await fetch(
+          process.env.REACT_APP_API_BASE 
+            ? `${process.env.REACT_APP_API_BASE}/api/settings/get`
+            : 'http://localhost:9193/api/settings/get'
+        );
+        if (settingsResponse.ok) {
+          const freshSettings = await settingsResponse.json();
+          downloadFilename = freshSettings.output_filename || 'merged.xml.gz';
+        }
+      } catch (err) {
+        console.warn('Could not fetch fresh settings, using default:', err);
+        downloadFilename = settings?.output_filename || 'merged.xml.gz';
+      }
+      
+      addLog(`[*] Downloading current merge (${downloadFilename})...`);
 
       const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9193';
-      const url = `${apiBase}/api/archives/download/${filename}`;
+      // Download from /data/tmp/ (temporary merge file)
+      const url = `${apiBase}/api/merge/download/${downloadFilename}`;
 
       const response = await fetch(url);
       if (!response.ok) throw new Error('Download failed');
@@ -244,14 +282,14 @@ export const MergePage = ({ selectedSources, settings }) => {
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = filename;
+      a.download = downloadFilename;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(a);
 
       const sizeMB = (blob.size / (1024 ** 2)).toFixed(2);
-      addLog(`[+] Downloaded ${filename} (${sizeMB}MB)`);
+      addLog(`[+] Downloaded ${downloadFilename} (${sizeMB}MB)`);
     } catch (err) {
       addLog(`[✗] Download failed: ${err.message}`);
     }
@@ -271,24 +309,39 @@ export const MergePage = ({ selectedSources, settings }) => {
       await call('/api/merge/save', {
         method: 'POST',
         body: JSON.stringify({
-          filename: mergedFilename,
           channels: mergedChannels,
           programs: mergedPrograms,
-          days_included: mergedDaysIncluded,
-          size: mergedSize
+          days_included: mergedDaysIncluded
         })
       });
 
+      // Fetch fresh settings to get the correct output filename for logging
+      let outputFilename = 'merged.xml.gz';
+      try {
+        const settingsResponse = await fetch(
+          process.env.REACT_APP_API_BASE 
+            ? `${process.env.REACT_APP_API_BASE}/api/settings/get`
+            : 'http://localhost:9193/api/settings/get'
+        );
+        if (settingsResponse.ok) {
+          const freshSettings = await settingsResponse.json();
+          outputFilename = freshSettings.output_filename || 'merged.xml.gz';
+        }
+      } catch (err) {
+        console.warn('Could not fetch fresh settings, using default:', err);
+        outputFilename = settings?.output_filename || 'merged.xml.gz';
+      }
+      
       addLog(`[+] Previous version archived with timestamp`);
       addLog(`[*] Promoting new merge to current...`);
-      addLog(`[+] Merge promoted to current (${filename})`);
+      addLog(`[+] Merge promoted to current (${outputFilename})`);
       addLog(`[+] Updating database metadata...`);
       addLog(`[+] Database updated`);
       addLog(`[*] Running archive cleanup...`);
       addLog(`[+] Archive cleanup completed`);
       addLog('');
       addLog(`[✓] Successfully saved as current merge`);
-      addLog(`[✓] File is now live as ${filename}`);
+      addLog(`[✓] File is now live as ${outputFilename}`);
       
       setSavedAsCurrent(true);
     } catch (err) {
@@ -296,7 +349,7 @@ export const MergePage = ({ selectedSources, settings }) => {
     }
   };
 
-  const handleClearLog = () => {
+  const handleClearLog = async () => {
     setLogs(['Ready to merge...']);
     setShowProgressBar(false);
     sessionStorage.removeItem('mergeLog');
@@ -315,6 +368,20 @@ export const MergePage = ({ selectedSources, settings }) => {
     sessionStorage.removeItem('mergedPrograms');
     sessionStorage.removeItem('mergedDaysIncluded');
     sessionStorage.removeItem('mergedSize');
+    
+    // Clear temporary merge files from /data/tmp/
+    try {
+      const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9193';
+      const response = await fetch(`${apiBase}/api/merge/clear-temp`, {
+        method: 'POST'
+      });
+      if (response.ok) {
+        const result = await response.json();
+        addLog(`[*] Cleared ${result.deleted} temporary files (${result.freed_mb}MB freed)`);
+      }
+    } catch (err) {
+      console.warn('Could not clear temp files:', err);
+    }
   };
 
   return (

@@ -1,6 +1,6 @@
 """
-EPG Merge - Archive Service
-Handles archive management and file organization
+EPG Merge - Archive Service (v0.4.4)
+Handles archive management and file organization with new directory structure
 """
 
 from pathlib import Path
@@ -13,7 +13,7 @@ from .base_service import BaseService
 
 
 class ArchiveService(BaseService):
-    """Handles archive management"""
+    """Handles archive management with /data/current/ and /data/archives/ structure"""
     
     def __init__(self, config: Config, db: Database = None):
         """Initialize archive service
@@ -29,17 +29,16 @@ class ArchiveService(BaseService):
         """List all archives with metadata from database
         
         Returns:
-            List of archive dictionaries with accurate counts
+            List of archive dictionaries with current files first, then archives
         """
         archives = []
         
-        # Add current file
-        current = self.config.archive_dir / "merged.xml.gz"
-        if current.exists():
-            archive_data = self.db.get_archive("merged.xml.gz") if self.db else None
-            archives.append(self._format_archive(current, is_current=True, db_data=archive_data))
+        # Add current file from /data/current/
+        for file in sorted(self.config.current_dir.glob("*.xml.gz")):
+            archive_data = self.db.get_archive(file.name) if self.db else None
+            archives.append(self._format_archive(file, is_current=True, db_data=archive_data))
         
-        # Add timestamped archives
+        # Add timestamped archives from /data/archives/ (sorted newest first)
         for file in sorted(self.config.archive_dir.glob("*.xml.gz.*"), reverse=True):
             filename = file.name
             archive_data = self.db.get_archive(filename) if self.db else None
@@ -77,10 +76,10 @@ class ArchiveService(BaseService):
         }
     
     def get_archive_path(self, filename: str) -> Path:
-        """Get safe archive path
+        """Get safe archive path - searches /data/current/ then /data/archives/
         
         Args:
-            filename: Archive filename
+            filename: Archive filename (without path)
         
         Returns:
             Full path to archive file
@@ -89,10 +88,22 @@ class ArchiveService(BaseService):
             ValueError: If filename contains path traversal characters
         """
         # Prevent path traversal
-        if ".." in filename or "/" in filename:
+        if ".." in filename or "/" in filename or "\\" in filename:
             raise ValueError("Invalid filename")
         
-        return self.config.archive_dir / filename
+        # Check /data/current/ first (current live file)
+        current_path = self.config.current_dir / filename
+        if current_path.exists():
+            return current_path
+        
+        # Then check /data/archives/ (timestamped archives)
+        archive_path = self.config.archive_dir / filename
+        if archive_path.exists():
+            return archive_path
+        
+        # If not found anywhere, return default (will error when trying to access)
+        # Prefer archive_dir for new files
+        return archive_path
     
     def save_archive_metadata(self, filename: str, channels: int, programs: int, days_included: int = 0) -> None:
         """Save archive metadata to database
@@ -105,7 +116,12 @@ class ArchiveService(BaseService):
         """
         if self.db:
             try:
-                file_path = self.config.archive_dir / filename
+                # Check both directories for the file
+                current_path = self.config.current_dir / filename
+                archive_path = self.config.archive_dir / filename
+                
+                file_path = current_path if current_path.exists() else archive_path
+                
                 if file_path.exists():
                     size_bytes = file_path.stat().st_size
                     self.db.save_archive(filename, channels, programs, days_included, size_bytes)
@@ -115,6 +131,8 @@ class ArchiveService(BaseService):
 
     def cleanup_old_archives(self, retention_days: int = 30) -> Dict[str, Any]:
         """Delete archives older than retention policy
+        
+        Only cleans /data/archives/, never touches /data/current/
         
         Args:
             retention_days: Keep archives for this many days
@@ -131,9 +149,7 @@ class ArchiveService(BaseService):
         
         self.logger.info(f"Cleanup: Removing archives older than {retention_days} days")
         
-        # Skip current file
-        current = self.config.archive_dir / "merged.xml.gz"
-        
+        # Only clean /data/archives/, never /data/current/
         for file in self.config.archive_dir.glob("*.xml.gz.*"):
             try:
                 file_time = datetime.fromtimestamp(file.stat().st_mtime)

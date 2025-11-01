@@ -377,6 +377,41 @@ async def save_merge(data: dict):
         logger.error(f"Error saving merge: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save merge")
 
+
+@app.get("/api/merge/download/{filename}", tags=["Merge"])
+async def download_merge(filename: str):
+    """Download temporary merged file from /data/tmp/
+    
+    Args:
+        filename: Name of temporary merge file to download
+    
+    Returns:
+        File response with gzip content
+    """
+    try:
+        # Prevent path traversal
+        if ".." in filename or "/" in filename:
+            raise ValueError("Invalid filename")
+        
+        file_path = config.tmp_dir / filename
+        
+        if not file_path.exists():
+            raise FileNotFoundError(f"Merge file not found: {filename}")
+        
+        logger.info(f"Downloading merge file: {filename}")
+        return FileResponse(file_path, media_type="application/gzip", filename=filename)
+    
+    except FileNotFoundError as e:
+        logger.error(f"File not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        logger.error(f"Invalid filename: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error downloading merge: {e}")
+        raise HTTPException(status_code=500, detail="Failed to download merge")
+
+
 # ============================================================================
 # ARCHIVES ENDPOINTS
 # ============================================================================
@@ -509,52 +544,68 @@ async def set_settings(data: dict):
 # SCHEDULED JOB ENDPOINTS
 # ============================================================================
 
-@app.post("/api/jobs/execute", tags=["Scheduled Jobs"])
-async def trigger_scheduled_merge():
-    """Manually trigger scheduled merge job (for testing)
+@app.post("/api/merge/execute", tags=["Merge"])
+async def execute_merge(data: dict):
+    """Execute merge of selected sources with channel filtering
+    
+    Args:
+        data: Dictionary with:
+            - sources: List of source files
+            - channels: List of channel IDs to filter
+            - timeframe: Days (3, 7, 14)
+            - feed_type: Feed type (iptv or gracenote)
+            - output_filename: (optional) Configured output filename from settings
     
     Returns:
-        Job execution result
-    
-    Example curl:
-        curl -X POST http://localhost:9193/api/jobs/execute
+        Merge result with temporary filename and statistics
     """
     try:
-        if job_service.is_job_running:
-            return {
-                "status": "rejected",
-                "message": "Job already running. Previous job will be cancelled and restarted.",
-            }
+        logger.info(f"🔄 Starting merge execution...")
+        logger.info(f"  Sources: {len(data.get('sources', []))}")
+        logger.info(f"  Channels: {len(data.get('channels', []))}")
         
-        logger.info("📌 Scheduled merge job triggered manually")
+        result = await merge_service.execute_merge(data)
         
-        # Create asyncio task for job execution
-        task = asyncio.create_task(job_service.execute_scheduled_merge())
-        job_service.current_job_task = task
+        logger.info(f"✅ Merge completed: {result['channels_included']} channels, {result['programs_included']} programs")
+        logger.info(f"   File: {result['filename']} ({result['file_size']})")
         
-        # Add callback to log any exceptions
-        def task_done_callback(t):
-            try:
-                if t.cancelled():
-                    logger.info("Job task was cancelled")
-                    return
-                
-                result = t.result()
-                logger.info(f"Job task completed: {result.get('status')}")
-            except asyncio.CancelledError:
-                logger.info("Job task was cancelled (CancelledError)")
-            except Exception as e:
-                logger.error(f"❌ Job task failed with exception: {e}", exc_info=True)
+        # Save archive metadata to database
+        try:
+            archive_service.save_archive_metadata(
+                result['filename'],
+                result['channels_included'],
+                result['programs_included'],
+                result.get('days_included', 0)
+            )
+        except Exception as e:
+            logger.warning(f"Could not save archive metadata: {e}")
         
-        task.add_done_callback(task_done_callback)
-        
-        return {
-            "status": "started",
-            "message": "Scheduled merge job started. Monitor job history for results."
-        }
+        return result
+    except ValueError as e:
+        logger.error(f"Validation error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error triggering scheduled merge: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to trigger scheduled merge")
+        logger.error(f"Merge error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Merge failed")
+
+
+@app.post("/api/merge/clear-temp", tags=["Merge"])
+async def clear_temp_files():
+    """Clear all temporary merge files from /data/tmp/
+    
+    Called when user clears merge log or wants to start fresh
+    
+    Returns:
+        Cleanup statistics
+    """
+    try:
+        logger.info("Clearing temporary merge files...")
+        result = merge_service.clear_temp_files()
+        logger.info(f"Temp files cleared: {result['deleted']} files, {result['freed_mb']}MB freed")
+        return result
+    except Exception as e:
+        logger.error(f"Error clearing temp files: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clear temporary files")
 
 
 @app.get("/api/jobs/history", tags=["Scheduled Jobs"])
