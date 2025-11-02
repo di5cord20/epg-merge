@@ -142,6 +142,7 @@ async def startup_event():
 async def shutdown_event():
     """Cleanup on shutdown"""
     logger.info("🛑 Shutting down EPG Merge Application")
+    job_service.stop_scheduler()
     db.close()
 
 

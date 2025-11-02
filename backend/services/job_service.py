@@ -98,6 +98,12 @@ class ScheduledJobService:
         # Job state
         self.current_job_task: Optional[asyncio.Task] = None
         self.is_job_running = False
+
+    def stop_scheduler(self):
+        """Stop the scheduler"""
+        if self.scheduler_task:
+            self.scheduler_task.cancel()
+            self.logger.info("✅ Scheduler stopped")
     
     # =========================================================================
     # JOB HISTORY MANAGEMENT
@@ -541,17 +547,6 @@ class ScheduledJobService:
                 self.logger.error(f"Scheduler error: {e}", exc_info=True)
                 # Wait 60 seconds before retrying
                 await asyncio.sleep(60)
-
-    @app.on_event("shutdown")
-    async def shutdown_event():
-        """Cleanup on shutdown"""
-        logger.info("🛑 Shutting down EPG Merge Application")
-        
-        # Stop scheduler
-        if hasattr(job_service, 'scheduler_task'):
-            job_service.scheduler_task.cancel()
-        
-        db.close()
 
     # =========================================================================
     # NOTIFICATIONS
