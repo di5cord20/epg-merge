@@ -1,5 +1,5 @@
 """
-EPG Merge - Merge Service (v0.4.5)
+EPG Merge - Merge Service (v0.4.5 FIXED)
 Handles XML merging logic with timeframe tracking and configurable output filename
 """
 
@@ -102,23 +102,28 @@ class MergeService(BaseService):
             ]
             
             # Download files with smart caching
-            downloaded_files = await self._download_sources(urls)
+            downloaded_files = await self._download_sources(urls, sources, folder)
+            
+            # Get the configured output filename from settings
+            from services.settings_service import SettingsService
+            settings_service = SettingsService(self.db)
+            output_filename = settings_service.get_output_filename()
             
             # Perform the merge logic
             temp_file = await self._merge_xml_files(
                 downloaded_files,
                 channels,
-                timeframe
+                output_filename
             )
             
             # Get file stats
             file_size = self._get_file_size(temp_file)
             
             return {
-                "filename": temp_file.name,
-                "channels_included": len(channels),
-                "programs_included": self._count_programs(temp_file),
-                "file_size": file_size,
+                "filename": temp_file.get("filename"),
+                "channels_included": temp_file.get("channels_included", 0),
+                "programs_included": temp_file.get("programs_included", 0),
+                "file_size": temp_file.get("file_size", "0MB"),
                 "days_included": int(timeframe),
                 "merge_date": datetime.now().isoformat()
             }
@@ -217,20 +222,19 @@ class MergeService(BaseService):
         }
 
 
-    async def _download_sources(self, sources: List[str], timeframe: str, feed_type: str) -> List[str]:
+    async def _download_sources(self, urls: List[str], sources: List[str], folder: str) -> List[str]:
         """Download and cache source files with detailed logging of each step
         
         Args:
+            urls: List of source URLs
             sources: List of source filenames
-            timeframe: Days (3, 7, or 14)
-            feed_type: Feed type (iptv or gracenote)
+            folder: Folder name being used
         
         Returns:
             List of downloaded file paths
         """
         from datetime import timedelta
         
-        folder = folder_map.get(timeframe, {}).get(feed_type, "3dayiptv")
         base_url = f"https://share.jesmann.com/{folder}"
         
         self.logger.info(f"Source URL: {base_url}")
@@ -241,10 +245,9 @@ class MergeService(BaseService):
         cache_hits = 0
         cache_misses = 0
         
-        for idx, source in enumerate(sources, 1):
+        for idx, (url, source) in enumerate(zip(urls, sources), 1):
             try:
                 cache_file = self.config.cache_dir / source
-                url = f"{base_url}/{source}"
                 
                 self.logger.info(f"[{idx}/{len(sources)}] {source}")
                 
@@ -487,6 +490,28 @@ class MergeService(BaseService):
             "freed_bytes": freed_bytes,
             "freed_mb": freed_mb
         }
+
+    def _get_file_size(self, file_info: Dict[str, Any]) -> str:
+        """Get file size from file info dict
+        
+        Args:
+            file_info: Dictionary with file information
+        
+        Returns:
+            File size as string
+        """
+        return file_info.get("file_size", "0MB")
+
+    def _count_programs(self, file_path: Path) -> int:
+        """Count programs in a file (placeholder)
+        
+        Args:
+            file_path: Path to file
+        
+        Returns:
+            Program count
+        """
+        return 0
 
     def _cleanup_old_archives(self, retention_days: int) -> Dict[str, Any]:
         """Delete archives older than retention policy

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, TrendingUp, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { RefreshCw, TrendingUp, Clock, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 
 /**
- * Dashboard Page - v0.4.2
- * Pure monitoring display (Run Now button removed)
+ * Dashboard Page - v0.4.7
+ * Enhanced with: Clear History button, new stats display
  * Shows: job status, history, next scheduled run
  */
 export const DashboardPage = () => {
@@ -12,7 +12,9 @@ export const DashboardPage = () => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [clearingHistory, setClearingHistory] = useState(false);
   const { call } = useApi();
 
   // =========================================================================
@@ -45,6 +47,30 @@ export const DashboardPage = () => {
       setLoading(false);
     }
   }, [fetchStatus, fetchHistory]);
+
+  const handleClearHistory = async () => {
+    if (!window.confirm('⚠️ This will DELETE ALL job history records. This action cannot be undone. Are you sure?')) {
+      return;
+    }
+
+    setClearingHistory(true);
+    try {
+      setError(null);
+      const result = await call('/api/jobs/clear-history', {
+        method: 'POST'
+      });
+      
+      setSuccess(`✅ Deleted ${result.deleted_count} job records`);
+      setTimeout(() => setSuccess(null), 5000);
+      
+      // Refresh data
+      await refreshData();
+    } catch (err) {
+      setError('Failed to clear history: ' + err.message);
+    } finally {
+      setClearingHistory(false);
+    }
+  };
 
   // =========================================================================
   // AUTO-REFRESH & INITIALIZATION
@@ -82,10 +108,20 @@ export const DashboardPage = () => {
     return `${mins}m ${secs}s`;
   };
 
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '0 B';
+    if (typeof bytes === 'string') return bytes; // Already formatted
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    if (bytes === 0) return '0 B';
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + ' ' + sizes[i];
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'success': return '#10b981';
       case 'failed': return '#ef4444';
+      case 'timeout': return '#f59e0b';
       case 'running': return '#3b82f6';
       default: return '#6b7280';
     }
@@ -95,6 +131,7 @@ export const DashboardPage = () => {
     switch (status) {
       case 'success': return <CheckCircle size={20} color="#10b981" />;
       case 'failed': return <AlertCircle size={20} color="#ef4444" />;
+      case 'timeout': return <AlertCircle size={20} color="#f59e0b" />;
       case 'running': return <RefreshCw size={20} color="#3b82f6" style={{ animation: 'spin 2s linear infinite' }} />;
       default: return <Clock size={20} color="#6b7280" />;
     }
@@ -171,7 +208,21 @@ export const DashboardPage = () => {
           borderRadius: '6px',
           color: '#fca5a5'
         }}>
-          {error}
+          ❌ {error}
+        </div>
+      )}
+
+      {/* Success Alert */}
+      {success && (
+        <div style={{
+          marginBottom: '20px',
+          padding: '12px',
+          background: 'rgba(16, 185, 129, 0.1)',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+          borderRadius: '6px',
+          color: '#86efac'
+        }}>
+          {success}
         </div>
       )}
 
@@ -220,16 +271,30 @@ export const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Refresh Button & Auto-refresh Toggle */}
+      {/* Control Buttons */}
       <div style={{ marginBottom: '30px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
         <button
           onClick={refreshData}
           disabled={loading}
           style={buttonStyle}
-          onMouseEnter={(e) => e.target.style.background = '#2563eb'}
-          onMouseLeave={(e) => e.target.style.background = '#3b82f6'}
+          onMouseEnter={(e) => !loading && (e.target.style.background = '#2563eb')}
+          onMouseLeave={(e) => !loading && (e.target.style.background = '#3b82f6')}
         >
           <RefreshCw size={16} /> Refresh
+        </button>
+
+        <button
+          onClick={handleClearHistory}
+          disabled={clearingHistory || history.length === 0}
+          style={{
+            ...buttonStyle,
+            background: clearingHistory || history.length === 0 ? '#6b7280' : '#ef4444',
+            cursor: clearingHistory || history.length === 0 ? 'not-allowed' : 'pointer'
+          }}
+          onMouseEnter={(e) => !(clearingHistory || history.length === 0) && (e.target.style.background = '#dc2626')}
+          onMouseLeave={(e) => !(clearingHistory || history.length === 0) && (e.target.style.background = '#ef4444')}
+        >
+          <Trash2 size={16} /> {clearingHistory ? 'Clearing...' : 'Clear History'}
         </button>
 
         {/* Auto-refresh toggle */}
@@ -254,7 +319,7 @@ export const DashboardPage = () => {
         }}>
           <h3 style={{ marginTop: 0, marginBottom: '15px' }}>Latest Job Details</h3>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '15px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '20px', marginBottom: '15px' }}>
             <div>
               <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Status</div>
               <div style={{ fontSize: '14px', fontWeight: '600', color: getStatusColor(status.latest_job.status) }}>
@@ -293,6 +358,20 @@ export const DashboardPage = () => {
                 </div>
 
                 <div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Peak Memory</div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#cbd5e1' }}>
+                    {status.latest_job.peak_memory_mb ? `${status.latest_job.peak_memory_mb.toFixed(2)} MB` : 'N/A'}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Days Included</div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#cbd5e1' }}>
+                    {status.latest_job.days_included || 'N/A'}
+                  </div>
+                </div>
+
+                <div>
                   <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Completed</div>
                   <div style={{ fontSize: '14px', fontWeight: '600', color: '#cbd5e1' }}>
                     {formatDate(status.latest_job.completed_at)}
@@ -301,7 +380,7 @@ export const DashboardPage = () => {
               </>
             )}
 
-            {status.latest_job.status === 'failed' && (
+            {(status.latest_job.status === 'failed' || status.latest_job.status === 'timeout') && (
               <div style={{ gridColumn: '1 / -1' }}>
                 <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Error</div>
                 <div style={{ fontSize: '13px', color: '#fca5a5', padding: '8px', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '4px', fontFamily: 'monospace' }}>
@@ -337,6 +416,7 @@ export const DashboardPage = () => {
                 <th style={thStyle}>Duration</th>
                 <th style={thStyle}>Channels</th>
                 <th style={thStyle}>Programs</th>
+                <th style={thStyle}>Memory</th>
               </tr>
             </thead>
             <tbody>
@@ -352,6 +432,7 @@ export const DashboardPage = () => {
                   <td style={tdStyle}>{formatDuration(job.execution_time_seconds)}</td>
                   <td style={tdStyle}>{job.channels_included || '—'}</td>
                   <td style={tdStyle}>{job.programs_included || '—'}</td>
+                  <td style={tdStyle}>{job.peak_memory_mb ? `${job.peak_memory_mb.toFixed(1)}MB` : '—'}</td>
                 </tr>
               ))}
             </tbody>

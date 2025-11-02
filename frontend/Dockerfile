@@ -1,4 +1,4 @@
-# Frontend Dockerfile - EPG Merge v0.4.2
+# Frontend Dockerfile - EPG Merge v0.4.7
 # Multi-stage build for production optimization
 
 # Stage 1: Build
@@ -9,8 +9,8 @@ WORKDIR /app
 # Copy package files
 COPY frontend/package*.json ./
 
-# Install dependencies
-RUN npm ci --prefer-offline --no-audit
+# Install dependencies - use npm install if npm ci fails
+RUN npm ci --prefer-offline --no-audit || npm install --prefer-offline
 
 # Copy source code
 COPY frontend/public ./public
@@ -33,7 +33,7 @@ EXPOSE 80
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost/api/health || exit 1
+    CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
 # Run nginx
 CMD ["nginx", "-g", "daemon off;"]

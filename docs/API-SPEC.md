@@ -417,120 +417,117 @@ Update settings.
 
 ---
 
-### Jobs & Scheduling
+### Jobs - Scheduled Merge Execution (v0.4.7)
 
 #### GET /api/jobs/status
-Get current job status and next scheduled run.
+Get current job status and next scheduled run
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
-    "is_running": false,
-    "current_job_id": null,
-    "next_scheduled_run": "2025-11-02T02:30:00Z",
-    "schedule_cron": "30 2 * * *",
-    "latest_job": {
-      "job_id": "merge_20251101_143000",
-      "status": "success",
-      "started_at": "2025-11-01T14:30:00Z",
-      "completed_at": "2025-11-01T14:35:42Z",
-      "execution_time_seconds": 342,
-      "channels_included": 145,
-      "programs_included": 8234
-    }
-  }
+  "is_running": false,
+  "latest_job": {
+    "job_id": "scheduled_merge_20251102_104307",
+    "status": "success",
+    "started_at": "2025-11-02T10:43:07.016871",
+    "completed_at": "2025-11-02T10:43:19.798953",
+    "channels_included": 5,
+    "programs_included": 519,
+    "file_size": "0.04MB",
+    "peak_memory_mb": 82.27,
+    "days_included": 3,
+    "execution_time_seconds": 12.78,
+    "error_message": null
+  },
+  "next_scheduled_run": "2025-11-03T12:00:00"
 }
 ```
 
 #### GET /api/jobs/history
-Get job execution history.
+Get job execution history
 
 **Query Parameters:**
-- `limit` (int): Max results to return (default: 50)
-- `status` (string): Filter by status (pending|running|success|failed)
-
-**Example:**
-```bash
-curl "http://localhost:9193/api/jobs/history?limit=10&status=success"
-```
+- `limit` (optional, default: 50) - Maximum records to return
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
-    "jobs": [
-      {
-        "job_id": "merge_20251101_143000",
-        "status": "success",
-        "started_at": "2025-11-01T14:30:00Z",
-        "completed_at": "2025-11-01T14:35:42Z",
-        "merge_filename": "merged.xml.gz",
-        "channels_included": 145,
-        "programs_included": 8234,
-        "file_size": "5.2 MB",
-        "execution_time_seconds": 342
-      }
-    ],
-    "total": 47
-  }
+  "jobs": [
+    {
+      "job_id": "scheduled_merge_20251102_104307",
+      "status": "success",
+      "started_at": "2025-11-02T10:43:07.016871",
+      "completed_at": "2025-11-02T10:43:19.798953",
+      "channels_included": 5,
+      "programs_included": 519,
+      "file_size": "0.04MB",
+      "peak_memory_mb": 82.27,
+      "days_included": 3,
+      "execution_time_seconds": 12.78,
+      "error_message": null
+    }
+  ],
+  "count": 1
 }
 ```
 
 #### GET /api/jobs/latest
-Get latest job execution details.
+Get most recent job record
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
-    "job_id": "merge_20251101_143000",
+  "job": {
+    "job_id": "scheduled_merge_20251102_104307",
     "status": "success",
-    "started_at": "2025-11-01T14:30:00Z",
-    "completed_at": "2025-11-01T14:35:42Z",
-    "execution_time_seconds": 342,
-    "channels_included": 145,
-    "programs_included": 8234,
-    "file_size": "5.2 MB",
-    "error_message": null
+    ...
   }
 }
 ```
 
-#### POST /api/jobs/execute
-Manually trigger a merge job.
+#### POST /api/jobs/execute-now (NEW v0.4.7)
+Manually trigger merge execution (for testing purposes)
 
-**Request Body (optional):**
-```json
-{
-  "timeout_seconds": 300
-}
-```
+**No parameters required**
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
-    "job_id": "merge_20251101_144000",
-    "status": "started"
-  }
+  "status": "success",
+  "job_id": "scheduled_merge_20251102_104307",
+  "filename": "merged.xml.gz",
+  "created_at": "2025-11-02T10:43:19.798953",
+  "channels": 5,
+  "programs": 519,
+  "file_size": "0.04MB",
+  "days_included": 3,
+  "peak_memory_mb": 82.27,
+  "execution_time": 12.78
+}
+```
+
+#### POST /api/jobs/clear-history (NEW v0.4.7)
+Delete ALL job history records (irreversible)
+
+**No parameters required**
+
+**Response:**
+```json
+{
+  "status": "cleared",
+  "deleted_count": 12,
+  "message": "Deleted 12 job history records"
 }
 ```
 
 #### POST /api/jobs/cancel
-Cancel a running job.
+Cancel currently running job
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
-    "cancelled_job_id": "merge_20251101_144000"
-  }
+  "status": "cancelled",
+  "message": "Job cancellation requested"
 }
 ```
 

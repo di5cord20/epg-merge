@@ -4,6 +4,43 @@ All notable changes to the EPG Merge Application are documented in this file.
 
 ---
 
+## [0.4.7] - 2025-11-02
+
+### Added
+- Peak memory tracking for scheduled merge jobs using `psutil`
+- Timeout monitoring (soft-limit advisory) for merge execution
+- Enhanced Discord notifications with 8 statistics:
+  - Filename, Created timestamp, Output size
+  - Channels kept, Programs included, Days included
+  - Peak memory, Duration
+- Manual merge trigger endpoint: `POST /api/jobs/execute-now`
+- Clear job history endpoint: `POST /api/jobs/clear-history`
+- Clear History button on Dashboard with confirmation dialog
+- Job history now includes: `peak_memory_mb`, `days_included`, `error_message`
+- Automatic database schema migration for new columns
+- `psutil>=5.8.0` dependency for memory monitoring
+
+### Changed
+- Job history table schema updated with memory and days tracking
+- `MergeService._download_sources()` signature fixed
+- Docker Dockerfile fallback: `npm ci || npm install`
+- Docker Compose volume mounts corrected: `./data:/data`, `./config:/config`
+- `.dockerignore` updated to include `frontend/package-lock.json`
+
+### Fixed
+- Fixed merge service download function signature
+- Fixed Docker build context for frontend dependencies
+- Fixed Docker permission errors with proper volume mounts
+- Database schema migration now handles existing columns gracefully
+
+### Infrastructure
+- Timeout is currently a "soft limit" (logs warning if exceeded)
+- Hard timeout enforcement deferred (requires async I/O refactoring)
+- Memory monitoring samples every 100ms during merge execution
+- Job history automatically cleaned up based on retention policy
+
+---
+
 ## [0.4.6] - 2025-11-02
 
 ### Added

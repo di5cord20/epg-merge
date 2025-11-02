@@ -1,5 +1,5 @@
 # EPG Merge App - Python Dependencies
-# Version: 0.1
+# Version: 0.4.7
 
 # Core Framework
 fastapi==0.104.1
@@ -27,6 +27,9 @@ beautifulsoup4==4.12.2
 
 # Cron Expression Handling
 croniter==2.0.1
+
+# System Monitoring (v0.4.7 - Memory tracking for scheduled jobs)
+psutil>=5.8.0
 
 # Utilities
 lxml==4.9.3

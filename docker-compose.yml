@@ -8,12 +8,16 @@ services:
     ports:
       - "9193:9193"
     environment:
-      - FLASK_ENV=production
+      - ENVIRONMENT=production
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=INFO
+      - DATA_DIR=/data
+      - CONFIG_DIR=/config
     volumes:
-      - ./backend/data:/app/data
-      - ./backend/logs:/app/logs
+      # Data directory for temporary merges and archives
+      - ./data:/data
+      # Config directory for database and cache
+      - ./config:/config
     networks:
       - epg-network
     healthcheck:
@@ -58,9 +62,3 @@ services:
 networks:
   epg-network:
     driver: bridge
-
-volumes:
-  backend-data:
-    driver: local
-  backend-logs:
-    driver: local

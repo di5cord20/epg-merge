@@ -1,6 +1,8 @@
 """
-EPG Merge Application - Database Layer (Refactored v0.4.1)
-Simplified persistence with SQLite as single source of truth
+EPG Merge Application - Database Layer (v0.4.7)
+Enhanced with automatic schema migrations
+- Simplified persistence with SQLite as single source of truth
+- Automatic column addition (v0.4.7: peak_memory_mb, days_included)
 - Removed redundant methods
 - Cleaner schema
 - Better error handling
@@ -30,7 +32,7 @@ class Database:
         return self._connection
     
     def initialize(self) -> None:
-        """Initialize database schema"""
+        """Initialize database schema with migrations"""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -81,11 +83,55 @@ class Database:
                 )
             ''')
             
+            # Apply any pending migrations
+            self._apply_migrations(cursor)
+            
             conn.commit()
             self.logger.info("✅ Database schema initialized")
         except Exception as e:
             self.logger.error(f"Failed to initialize database: {e}")
             raise
+    
+    def _apply_migrations(self, cursor) -> None:
+        """Apply pending database migrations automatically
+        
+        v0.4.7 Migration: Add peak_memory_mb and days_included columns
+        """
+        try:
+            # Get existing columns
+            cursor.execute("PRAGMA table_info(job_history)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            
+            # v0.4.7: Add peak_memory_mb column if missing
+            if 'peak_memory_mb' not in existing_columns:
+                try:
+                    cursor.execute('''
+                        ALTER TABLE job_history 
+                        ADD COLUMN peak_memory_mb REAL DEFAULT NULL
+                    ''')
+                    self.logger.info("✅ Migration: Added peak_memory_mb column")
+                except sqlite3.OperationalError as e:
+                    if "duplicate column name" in str(e).lower():
+                        self.logger.debug("Column peak_memory_mb already exists")
+                    else:
+                        raise
+            
+            # v0.4.7: Add days_included column if missing
+            if 'days_included' not in existing_columns:
+                try:
+                    cursor.execute('''
+                        ALTER TABLE job_history 
+                        ADD COLUMN days_included INTEGER DEFAULT NULL
+                    ''')
+                    self.logger.info("✅ Migration: Added days_included column")
+                except sqlite3.OperationalError as e:
+                    if "duplicate column name" in str(e).lower():
+                        self.logger.debug("Column days_included already exists")
+                    else:
+                        raise
+        
+        except Exception as e:
+            self.logger.warning(f"Migration warning (non-critical): {e}")
     
     def health_check(self) -> bool:
         """Check database connectivity and integrity"""
@@ -245,6 +291,8 @@ class Database:
                  channels: Optional[int] = None,
                  programs: Optional[int] = None,
                  file_size: Optional[str] = None,
+                 peak_memory_mb: Optional[float] = None,
+                 days_included: Optional[int] = None,
                  error_message: Optional[str] = None,
                  execution_time: Optional[float] = None) -> None:
         """Save job execution record"""
@@ -254,10 +302,12 @@ class Database:
             cursor.execute(
                 '''INSERT OR REPLACE INTO job_history 
                    (job_id, status, started_at, completed_at, merge_filename, 
-                    channels_included, programs_included, file_size, error_message, execution_time_seconds)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    channels_included, programs_included, file_size, peak_memory_mb,
+                    days_included, error_message, execution_time_seconds)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                 (job_id, status, started_at, completed_at, merge_filename, 
-                 channels, programs, file_size, error_message, execution_time)
+                 channels, programs, file_size, peak_memory_mb, days_included,
+                 error_message, execution_time)
             )
             conn.commit()
             self.logger.debug(f"Saved job record: {job_id}")

@@ -359,6 +359,45 @@ FOLDER_MAP = {
 
 ---
 
+### Feature: Scheduled Merge Execution with Monitoring (v0.4.7)
+**Files:**
+- `backend/services/job_service.py` - Job execution, memory tracking, timeout monitoring
+- `backend/routers/jobs.py` - Job management endpoints
+- `frontend/src/pages/DashboardPage.js` - Job history display and Clear History button
+
+**What it does:**
+1. Executes scheduled merges with configurable timeout monitoring (soft-limit)
+2. Tracks peak memory usage via `psutil` (accurate process memory)
+3. Sends Discord notifications with 8 statistics on completion
+4. Stores job history with all execution details
+5. Provides Clear History button to delete all job records
+6. Manual merge trigger endpoint for testing (`/api/jobs/execute-now`)
+
+**New Database Columns (v0.4.7):**
+```sql
+ALTER TABLE job_history ADD COLUMN peak_memory_mb REAL;
+ALTER TABLE job_history ADD COLUMN days_included INTEGER;
+```
+
+**New Endpoints (v0.4.7):**
+- `POST /api/jobs/execute-now` - Manually trigger merge (testing)
+- `POST /api/jobs/clear-history` - Delete all job history records
+
+**New Dependencies (v0.4.7):**
+- `psutil>=5.8.0` - Process memory monitoring
+
+**To modify:**
+- Job execution logic → edit `backend/services/job_service.py`
+- Job endpoints → edit `backend/routers/jobs.py`
+- Dashboard display → edit `frontend/src/pages/DashboardPage.js`
+- Timeout behavior → modify `execute_scheduled_merge()` in job_service.py
+- Memory tracking → uses `MemoryMonitor` class in job_service.py
+
+**Note:** Timeout is currently a "soft limit" for monitoring (logs warning if exceeded).
+Hard timeout enforcement would require async I/O refactoring of merge_service.
+
+---
+
 ### Feature: Source Selection & Loading
 **Files:**
 - `frontend/src/pages/SourcesPage.js` - UI for selecting timeframe, feed type, sources
@@ -887,6 +926,7 @@ execution_time_seconds REAL
 
 | Version | Date | Major Changes |
 |---------|------|---------------|
+| 0.4.7 | Nov 2, 2025 | Scheduled merge monitoring: memory tracking, timeout advisory, enhanced Discord notifications, Clear History button |
 | 0.4.6 | Nov 2, 2025 | Router refactoring: modular routers, clean orchestrator, main.py 63 lines |
 | 0.4.5 | Nov 1, 2025 | Centralized constants, folder mapping validation, eliminated duplication |
 | 0.4.4 | Nov 1, 2025 | Configurable filename, new directory structure, copy workflow, 56+ tests |

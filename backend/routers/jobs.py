@@ -1,5 +1,6 @@
 """
-Scheduled job execution and monitoring endpoints
+Scheduled job execution and monitoring endpoints (v0.4.7)
+Added: /api/jobs/execute-now, /api/jobs/clear-history
 """
 
 from fastapi import APIRouter, HTTPException
@@ -76,6 +77,37 @@ def init_jobs_routes(job_service):
             logger.error(f"Error getting job status: {e}")
             raise HTTPException(status_code=500, detail="Failed to get job status")
 
+    @router.post("/api/jobs/execute-now")
+    async def execute_merge_now():
+        """Manually trigger merge execution (for testing)
+        
+        This endpoint allows testing the merge job outside of the scheduler.
+        Useful for validating configuration before scheduling.
+        
+        Returns:
+            Job execution result
+        
+        Example curl:
+            curl -X POST http://localhost:9193/api/jobs/execute-now
+        """
+        try:
+            if job_service.is_job_running:
+                return {
+                    "status": "already_running",
+                    "message": "A merge job is already running"
+                }
+            
+            logger.info("🚀 Manual merge execution triggered")
+            
+            # Execute merge and wait for completion (synchronously)
+            result = await job_service.execute_scheduled_merge()
+            
+            logger.info(f"✅ Manual merge completed: {result.get('status')}")
+            return result
+        except Exception as e:
+            logger.error(f"Error executing manual merge: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to execute merge: {str(e)}")
+
     @router.post("/api/jobs/cancel")
     async def cancel_running_job():
         """Cancel currently running scheduled merge job
@@ -103,3 +135,28 @@ def init_jobs_routes(job_service):
         except Exception as e:
             logger.error(f"Error cancelling job: {e}")
             raise HTTPException(status_code=500, detail="Failed to cancel job")
+
+    @router.post("/api/jobs/clear-history")
+    async def clear_job_history():
+        """Delete ALL job history records
+        
+        WARNING: This action is irreversible. All job history will be permanently deleted.
+        
+        Returns:
+            Number of records deleted
+        
+        Example curl:
+            curl -X POST http://localhost:9193/api/jobs/clear-history
+        """
+        try:
+            logger.warning("🗑️ Clear job history requested")
+            deleted = job_service.clear_job_history()
+            
+            return {
+                "status": "cleared",
+                "deleted_count": deleted,
+                "message": f"Deleted {deleted} job history records"
+            }
+        except Exception as e:
+            logger.error(f"Error clearing job history: {e}")
+            raise HTTPException(status_code=500, detail="Failed to clear job history")
