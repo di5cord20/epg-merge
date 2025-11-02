@@ -3,6 +3,8 @@ EPG Merge Application - FastAPI Backend
 Modular, maintainable architecture with proper separation of concerns
 """
 
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -129,8 +131,9 @@ async def startup_event():
     job_service.init_job_history_table()
     logger.info("✅ Job history initialized")
 
+    # NEW: Start the cron scheduler
     logger.info("⏱️ Starting scheduled merge scheduler...")
-    job_service.start_scheduler()
+    asyncio.create_task(job_service.start_scheduler())
     logger.info("✅ Scheduler started - will run merges based on settings")
 
     logger.info(f"📁 Config: {config.config_dir}")
