@@ -2,7 +2,7 @@
 
 > **Production-grade TV feed merger** combining multiple XMLTV EPG files with channel filtering, archiving, and scheduling.
 
-**Version:** 0.4.3 | **Status:** Production Ready | **Tests:** 64/64 passing
+**Version:** 0.4.5 | **Status:** Production Ready | **Tests:** 56+/56+ passing
 
 ---
 
@@ -33,6 +33,7 @@ sudo bash install/install.sh
 ✅ **Discord notifications** - Optional webhook support (ready to enable)  
 ✅ **Smart caching** - HTTP HEAD checks prevent unnecessary downloads  
 ✅ **Dark mode UI** - Responsive React 18 frontend  
+✅ **Centralized configuration** - Single source of truth for folder mappings (v0.4.5)  
 
 ---
 
@@ -85,18 +86,27 @@ sudo bash install/install.sh
 
 ## Project Status
 
-- **Current Version:** 0.4.3 (Archive Retention + Component Refactoring)
+- **Current Version:** 0.4.5 (Centralized Constants & Folder Validation)
 - **Last Update:** November 1, 2025
-- **Frontend Tests:** 64 passing (utility + integration)
+- **Frontend Tests:** 56+ passing (utility + integration)
 - **Backend Tests:** Full API contract validation
 - **Code Coverage:** 85%+
 
-### Recent Changes (v0.4.2-0.4.3)
-- Settings split into 7 focused sub-components with sidebar navigation
-- Archives split into 3 focused sub-components (table, legend, orchestrator)
-- Dashboard converted to pure monitoring display (no "Run Now")
-- Full archive metadata tracking (channels, programs, days_included)
-- Color-coded Days Left urgency indicators
+### Recent Changes (v0.4.5)
+- Created `backend/constants.py` - Single source of truth for folder mappings
+- Added `get_folder_name()` - Validates timeframe/feed_type combinations
+- Added `get_update_frequency()` - Human-readable update info
+- Updated `source_service.py` - Uses constants instead of local FOLDER_MAP
+- Updated `merge_service.py` - Uses constants instead of local folder_map
+- Eliminated 100% of folder mapping duplication across services
+- Improved error handling with explicit validation
+
+### Previous Notable Changes (v0.4.4)
+- Configurable output filename in Settings
+- New directory structure: `/data/tmp/`, `/data/current/`, `/data/archives/`
+- Copy-not-move workflow for better UX
+- Fresh settings fetching before operations
+- 56+ integration tests
 
 ---
 
@@ -148,6 +158,15 @@ SELECT * FROM settings ORDER BY key;             # View settings
 .tables                                          # List all tables
 ```
 
+### Test Configuration
+```bash
+# Test 14-day IPTV (folder should be 'iptv')
+python3 -c "from backend.constants import get_folder_name; print(get_folder_name('14', 'iptv'))"
+
+# Test 14-day Gracenote (folder should be empty string for root)
+python3 -c "from backend.constants import get_folder_name; print(get_folder_name('14', 'gracenote'))"
+```
+
 ---
 
 ## API Overview
@@ -179,10 +198,11 @@ epg-merge/
 │   ├── config.py            # Configuration management
 │   ├── database.py          # SQLite wrapper (240 lines)
 │   ├── version.py           # Version (single source of truth)
+│   ├── constants.py         # Centralized constants (NEW v0.4.5)
 │   ├── services/            # Business logic
 │   │   ├── merge_service.py
 │   │   ├── channel_service.py
-│   │   ├── source_service.py
+│   │   ├── source_service.py   # Uses constants.py (v0.4.5)
 │   │   ├── archive_service.py
 │   │   ├── settings_service.py
 │   │   └── job_service.py
@@ -199,7 +219,7 @@ epg-merge/
 ├── scripts/                 # Utility scripts (build, update, backup)
 ├── docker-compose.yml       # Docker setup
 ├── CHANGELOG.md             # Version history
-├── CONTEXT.md              # ← AI conversation starter (THIS FILE!)
+├── CONTEXT.md              # AI conversation reference (THIS FILE!)
 └── README.md               # ← You are here
 ```
 

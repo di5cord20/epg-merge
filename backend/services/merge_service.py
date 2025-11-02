@@ -1,5 +1,5 @@
 """
-EPG Merge - Merge Service (v0.4.4)
+EPG Merge - Merge Service (v0.4.5)
 Handles XML merging logic with timeframe tracking and configurable output filename
 """
 
@@ -13,6 +13,7 @@ import httpx
 import shutil
 
 from config import Config
+from constants import get_folder_name
 from database import Database
 from .base_service import BaseService
 
@@ -31,107 +32,101 @@ class MergeService(BaseService):
         self.db = db
     
     async def execute_merge(self, data: dict) -> Dict[str, Any]:
-        """Execute merge of selected sources with channel filtering
-        
-        Creates a temporary merge file in /data/tmp/ using configured output filename,
-        allowing user to review before promoting to current via "Save as Current" button
+        """
+        Execute merge of selected sources with channel filtering
         
         Args:
-            data: Dictionary with sources, channels, timeframe, feed_type, output_filename
+            data: Dictionary containing:
+                - sources: List of XML filenames to merge
+                - channels: List of channel IDs to filter by
+                - timeframe: Days (3, 7, or 14) - optional, defaults to "3"
+                - feed_type: Type (iptv or gracenote) - optional, defaults to "iptv"
         
         Returns:
-            Dictionary with merge results including temporary filename
+            Dictionary with merge results (filename, channels, programs, etc.)
+        
+        Raises:
+            ValueError: If validation fails
+            Exception: If merge fails
         """
         try:
-            from datetime import datetime
+            sources = data.get("sources", [])
+            channels = data.get("channels", [])
+            timeframe = data.get("timeframe", "3")
+            feed_type = data.get("feed_type", "iptv")
             
-            sources = data.get('sources', [])
-            channels = data.get('channels', [])
-            timeframe = data.get('timeframe', '3')
-            feed_type = data.get('feed_type', 'iptv')
-            output_filename = data.get('output_filename', 'merged.xml.gz')
+            if not sources:
+                raise ValueError("No sources provided")
             
-            # SAFETY FIX: Strip quotes if timeframe was double-encoded
-            if isinstance(timeframe, str):
-                timeframe = timeframe.strip('"').strip("'")
+            self.logger.info(f"🔄 Starting merge with {len(sources)} sources and {len(channels)} channels")
             
-            if not sources or not channels:
-                raise ValueError("Sources and channels required")
-            
-            # Validate timeframe is valid integer
+            # Validate timeframe and feed_type, get folder name
             try:
-                tf_int = int(timeframe)
-                if tf_int not in [3, 7, 14]:
-                    raise ValueError(f"Timeframe must be 3, 7, or 14 days (got {tf_int})")
+                folder = get_folder_name(timeframe, feed_type)
             except ValueError as e:
-                raise ValueError(f"Invalid timeframe: {timeframe} - {str(e)}")
+                self.logger.error(f"Invalid merge configuration: {e}")
+                raise ValueError(f"Invalid merge configuration: {e}")
             
-            # STEP 0: Clear old temporary files from /data/tmp/
-            self.logger.info(f"")
-            self.logger.info(f"================== MERGE EXECUTION STARTED ==================")
-            self.logger.info(f"Clearing old temporary files from /data/tmp/...")
-            try:
-                for file in self.config.tmp_dir.glob("*.xml.gz*"):
-                    file.unlink()
-                    self.logger.info(f"  ✓ Deleted: {file.name}")
-            except Exception as e:
-                self.logger.warning(f"  ⚠️  Could not clear all temp files: {e}")
+            # Download and merge sources
+            merge_result = await self._merge_sources(sources, channels, folder, timeframe)
             
-            self.logger.info(f"")
-            self.logger.info(f"Merge Configuration:")
-            self.logger.info(f"  Sources: {len(sources)}")
-            self.logger.info(f"  Channels to filter: {len(channels)}")
-            self.logger.info(f"  Timeframe: {timeframe} days")
-            self.logger.info(f"  Feed type: {feed_type}")
-            self.logger.info(f"")
+            self.logger.info(f"✅ Merge completed successfully")
+            return merge_result
             
-            # Create temporary file in /data/tmp/ with configured filename
-            # (No timestamp on temp file - gets cleaned before next merge)
-            temp_filename = output_filename
-            
-            self.logger.info(f"  Output (temporary): {temp_filename}")
-            self.logger.info(f"")
-            
-            # Phase 1: Download sources
-            self.logger.info(f"PHASE 1: Downloading Source Files")
-            self.logger.info(f"=" * 60)
-            downloaded_files = await self._download_sources(sources, timeframe, feed_type)
-            
-            if not downloaded_files:
-                raise Exception("No files downloaded successfully")
-            
-            self.logger.info(f"")
-            self.logger.info(f"PHASE 2: Merging and Filtering XML")
-            self.logger.info(f"=" * 60)
-            
-            # Phase 2: Merge XML with TEMPORARY filename
-            result = await self._merge_xml_files(downloaded_files, channels, temp_filename)
-            
-            # Add timeframe to result for storage
-            result['days_included'] = int(timeframe)
-            
-            self.logger.info(f"")
-            self.logger.info(f"PHASE 3: Final Summary")
-            self.logger.info(f"=" * 60)
-            self.logger.info(f"✅ Merge Completed Successfully")
-            self.logger.info(f"  Temporary filename: {result['filename']}")
-            self.logger.info(f"  Channels included: {result['channels_included']}")
-            self.logger.info(f"  Programs included: {result['programs_included']}")
-            self.logger.info(f"  File size: {result['file_size']}")
-            self.logger.info(f"  Days Included: {result['days_included']} days")
-            self.logger.info(f"================== MERGE EXECUTION COMPLETE ==================")
-            self.logger.info(f"")
-            
-            return result
-        
+        except ValueError as e:
+            self.logger.error(f"Validation error: {e}")
+            raise
         except Exception as e:
-            self.logger.error(f"")
-            self.logger.error(f"❌ MERGE FAILED")
-            self.logger.error(f"Error: {e}")
-            self.logger.error(f"")
+            self.logger.error(f"Merge error: {e}", exc_info=True)
             raise
 
 
+    async def _merge_sources(self, sources: List[str], channels: List[str], folder: str, timeframe: str) -> Dict[str, Any]:
+        """
+        Internal method to merge XML sources
+        
+        Args:
+            sources: List of XML filenames
+            channels: List of channel IDs to filter
+            folder: Folder path from constants
+            timeframe: Days (3, 7, or 14)
+        
+        Returns:
+            Merge result dictionary
+        """
+        try:
+            # Build URLs using the folder from constants
+            urls = [
+                f"https://share.jesmann.com/{folder}/{source}"
+                for source in sources
+            ]
+            
+            # Download files with smart caching
+            downloaded_files = await self._download_sources(urls)
+            
+            # Perform the merge logic
+            temp_file = await self._merge_xml_files(
+                downloaded_files,
+                channels,
+                timeframe
+            )
+            
+            # Get file stats
+            file_size = self._get_file_size(temp_file)
+            
+            return {
+                "filename": temp_file.name,
+                "channels_included": len(channels),
+                "programs_included": self._count_programs(temp_file),
+                "file_size": file_size,
+                "days_included": int(timeframe),
+                "merge_date": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error in merge process: {e}", exc_info=True)
+            raise
+    
     async def _merge_xml_files(self, files: List[str], channels: List[str], output_filename: str) -> Dict[str, Any]:
         """Merge XML files using streaming with progress logging
         
@@ -235,11 +230,6 @@ class MergeService(BaseService):
         """
         from datetime import timedelta
         
-        folder_map = {
-            "3": {"iptv": "3dayiptv", "gracenote": "3daygracenote"},
-            "7": {"iptv": "7dayiptv", "gracenote": "7daygracenote"},
-            "14": {"iptv": "14dayiptv", "gracenote": "14daygracenote"}
-        }
         folder = folder_map.get(timeframe, {}).get(feed_type, "3dayiptv")
         base_url = f"https://share.jesmann.com/{folder}"
         

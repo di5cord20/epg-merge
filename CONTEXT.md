@@ -3,7 +3,7 @@
 ---
 
 ⚠️ **IMPORTANT:** Update this file after each commit to keep it current for future AI conversations.  
-**Last Updated:** November 1, 2025 (v0.4.4 Complete)
+**Last Updated:** November 1, 2025 (v0.4.5 Complete)
 
 ---
 
@@ -139,18 +139,18 @@ Provides ready-to-copy git commands:
 git add -A
 
 # Commit with descriptive message
-git commit -m "feat: Feature Name - v0.4.4
+git commit -m "feat: Feature Name - v0.4.5
 
 - Specific change 1
 - Specific change 2
 - Updated CONTEXT.md, README.md, CHANGELOG.md"
 
 # Tag the version (if releasing)
-git tag -a v0.4.4 -m "Version 0.4.4 - Feature Name"
+git tag -a v0.4.5 -m "Version 0.4.5 - Feature Name"
 
 # Push changes
 git push origin main
-git push origin v0.4.4  # If tagged
+git push origin v0.4.5  # If tagged
 ```
 
 **What you do:**
@@ -195,8 +195,8 @@ I'm ready to proceed to Phase 1 and provide files.
 
 ## 📊 Current Project State
 
-**Current Version:** 0.4.4  
-**Last Updated:** November 1, 2025 (Phase 3 Complete)  
+**Current Version:** 0.4.5  
+**Last Updated:** November 1, 2025 (Phase 4 Complete)  
 **Status:** Production Ready | Tests: 56+/56+ passing
 
 ---
@@ -216,7 +216,7 @@ Frontend:  React 18.2 (dark mode only, no light mode)
 Backend:   FastAPI 0.115.5 with SQLite
 Database:  SQLite 3.x (single file, /config/app.db)
 Deployment: Docker / Systemd on Ubuntu/Debian
-Testing:   Jest (frontend) + Pytest (backend) - 64 tests passing
+Testing:   Jest (frontend) + Pytest (backend) - 56+ tests passing
 ```
 
 ---
@@ -240,6 +240,7 @@ Testing:   Jest (frontend) + Pytest (backend) - 64 tests passing
 │ - Configurable output_filename         │
 │ - New directory structure (/data/*)    │
 │ - Copy not move workflow               │
+│ - Centralized constants                │ ← NEW v0.4.5
 └────────────────┬─────────────────────────┘
                  │
         ┌────────┴────────┐
@@ -258,10 +259,36 @@ Testing:   Jest (frontend) + Pytest (backend) - 64 tests passing
 
 ## 📂 Code Organization - By Feature
 
+### Feature: Application Constants (NEW - v0.4.5)
+**Files:**
+- `backend/constants.py` - NEW - Centralized configuration constants
+- `backend/services/source_service.py` - Updated to use constants
+- `backend/services/merge_service.py` - Updated to use constants
+
+**What it does:**
+1. Defines `FOLDER_MAP` - Single source of truth for folder mappings (timeframe + feed_type → folder path)
+2. Defines `UPDATE_FREQUENCIES` - Human-readable update info by timeframe
+3. Provides `get_folder_name(timeframe, feed_type)` - Validates combinations and returns folder path
+4. Provides `get_update_frequency(timeframe)` - Returns update frequency description
+
+**Folder Mapping (v0.4.5 Verified):**
+```python
+FOLDER_MAP = {
+    "3": {"iptv": "3dayiptv", "gracenote": "3daygracenote"},
+    "7": {"iptv": "7dayiptv", "gracenote": "7daygracenote"},
+    "14": {"iptv": "iptv", "gracenote": ""}  # 14-day Gracenote at root (empty string)
+}
+```
+
+**To modify:** Edit `constants.py` to update folder mappings or add new validation functions. Both `source_service.py` and `merge_service.py` automatically use the updated constants.
+
+---
+
 ### Feature: Source Selection & Loading
 **Files:**
 - `frontend/src/pages/SourcesPage.js` - UI for selecting timeframe, feed type, sources
 - `backend/services/source_service.py` - Fetches available XML files from share.jesmann.com
+- `backend/constants.py` - Folder mapping constants (NEW v0.4.5)
 - `backend/main.py` → `/api/sources/list` - GET endpoint
 - `backend/main.py` → `/api/sources/select` - POST endpoint
 
@@ -269,8 +296,9 @@ Testing:   Jest (frontend) + Pytest (backend) - 64 tests passing
 1. Fetches available XML files from share.jesmann.com based on timeframe (3/7/14 days) and feed type (iptv/gracenote)
 2. Displays available vs. selected sources in dual-list UI
 3. Persists selection to localStorage (client) and backend settings
+4. Uses validated folder paths from constants.py (v0.4.5 improvement)
 
-**To modify:** Start in `SourcesPage.js` for UI, then `source_service.py` for backend logic.
+**To modify:** Start in `SourcesPage.js` for UI, then `source_service.py` for backend logic. Folder paths automatically validated via constants.
 
 ---
 
@@ -290,27 +318,29 @@ Testing:   Jest (frontend) + Pytest (backend) - 64 tests passing
 
 ---
 
-### Feature: Merge Execution & Download (v0.4.4 Updated)
+### Feature: Merge Execution & Download (v0.4.4 Updated, v0.4.5 Uses Constants)
 **Files:**
 - `frontend/src/pages/MergePage.js` (v0.4.4)
   - Fetches fresh settings before merge
-  - Download uses `/api/merge/download/` endpoint (NEW)
+  - Download uses `/api/merge/download/` endpoint
   - Download uses configured filename
-  - Clear Log calls `/api/merge/clear-temp` (NEW)
-- `backend/services/merge_service.py` (v0.4.4)
+  - Clear Log calls `/api/merge/clear-temp`
+- `backend/services/merge_service.py` (v0.4.5)
+  - Uses `get_folder_name()` from constants (improved validation)
   - `execute_merge()` - Clears `/data/tmp/`, creates temp file with output_filename
   - `_merge_xml_files()` - Writes to `/data/tmp/`
   - `save_merge()` - Copies (not moves) to `/data/current/`, archives all existing files
-  - `clear_temp_files()` - Clears `/data/tmp/` directory (NEW)
+  - `clear_temp_files()` - Clears `/data/tmp/` directory
+- `backend/constants.py` - NEW v0.4.5 - Folder mapping validation
 - `backend/config.py` (v0.4.4)
   - New directory paths: tmp_dir, current_dir, archive_dir (moved from /config to /data)
 - `backend/main.py` (v0.4.4)
   - `POST /api/merge/execute` - Accept output_filename parameter
-  - `GET /api/merge/download/{filename}` - NEW endpoint, download from /data/tmp/
-  - `POST /api/merge/clear-temp` - NEW endpoint, clear temporary files
+  - `GET /api/merge/download/{filename}` - Download from /data/tmp/
+  - `POST /api/merge/clear-temp` - Clear temporary files
 
 **What it does:**
-1. User starts merge → Backend clears `/data/tmp/`, fetches configured output_filename
+1. User starts merge → Backend clears `/data/tmp/`, fetches configured output_filename, validates via constants
 2. Merge creates temp file: `/data/tmp/{output_filename}`
 3. User downloads → Backend serves from `/data/tmp/{output_filename}`
 4. User clicks "Save as Current":
@@ -319,13 +349,12 @@ Testing:   Jest (frontend) + Pytest (backend) - 64 tests passing
 5. User can download again → Still works from `/data/tmp/`
 6. User clicks "Clear Log" → `/data/tmp/` cleared, session storage reset
 
-**Key Changes from v0.4.3:**
-- Temp file now uses configured output_filename instead of hardcoded "merged_TIMESTAMP.xml.gz"
-- Temp file kept after save (copy not move)
-- Download works at any stage of workflow
-- Archive all files on filename change (not just same-name files)
+**Key Improvements (v0.4.5):**
+- Folder paths validated via `get_folder_name()` instead of local mapping
+- Better error messages for invalid combinations
+- Single source of truth for folder structure
 
-**To modify:** `merge_service.py` for merge logic, `MergePage.js` for UI/UX, `config.py` for directory paths.
+**To modify:** `merge_service.py` uses constants automatically. If folder structure changes on share.jesmann.com, update `constants.py` only.
 
 ---
 
@@ -378,7 +407,7 @@ CREATE TABLE archives (
 
 **Settings Keys:**
 ```python
-output_filename: string (default: "merged.xml.gz") # v0.4.4: UPDATED - now used in merge workflow
+output_filename: string (default: "merged.xml.gz") # v0.4.4: Used in merge workflow
 merge_schedule: "daily" | "weekly"
 merge_time: "HH:MM" (UTC)
 merge_days: JSON array of 0-6 (weekdays)
@@ -468,7 +497,7 @@ POST /api/channels/export
 POST /api/channels/import
 ```
 
-### Merge (NEW/UPDATED - v0.4.4)
+### Merge (v0.4.4, uses constants in v0.4.5)
 ```
 POST /api/merge/execute
   Request: { sources, channels, timeframe, feed_type, output_filename }
@@ -476,7 +505,7 @@ POST /api/merge/execute
   Location: /data/tmp/{output_filename}
 
 GET /api/merge/download/{filename}
-  NEW v0.4.4 - Download from /data/tmp/
+  Download from /data/tmp/
   Response: File blob (gzipped XML)
 
 GET /api/merge/current
@@ -489,7 +518,7 @@ POST /api/merge/save
   Response: { status, current_file, archived }
 
 POST /api/merge/clear-temp
-  NEW v0.4.4 - Clear temporary files
+  Clear temporary files
   Response: { deleted, freed_bytes, freed_mb }
 ```
 
@@ -693,13 +722,20 @@ execution_time_seconds REAL
 
 ### Modify Merge Logic
 1. Edit XML processing in `backend/services/merge_service.py`
-2. Test locally: `cd backend && python -m pytest tests/`
-3. Update integration tests if behavior changes
+2. Uses `get_folder_name()` from `constants.py` for folder validation (v0.4.5+)
+3. Test locally: `cd backend && python -m pytest tests/`
+4. Update integration tests if behavior changes
 
 ### Modify Archive Metadata
 1. Update `archives` table schema in `backend/database.py`
 2. Update archive saving in `backend/services/archive_service.py`
 3. Update frontend display in `frontend/src/pages/archives/ArchivesTable.js`
+
+### Update Folder Mappings
+1. Edit `FOLDER_MAP` in `backend/constants.py` (v0.4.5+)
+2. Both `source_service.py` and `merge_service.py` automatically use updated values
+3. No changes needed to individual services
+4. Error handling automatically validates via `get_folder_name()`
 
 ---
 
@@ -724,6 +760,7 @@ execution_time_seconds REAL
 
 | Version | Date | Major Changes |
 |---------|------|---------------|
+| 0.4.5 | Nov 1, 2025 | Centralized constants, folder mapping validation, eliminated duplication |
 | 0.4.4 | Nov 1, 2025 | Configurable filename, new directory structure, copy workflow, 56+ tests |
 | 0.4.3 | Nov 1, 2025 | Documentation cleanup: consolidated 8 files, flat structure, zero duplication |
 | 0.4.2 | Oct 29, 2025 | Component refactoring, archive retention cleanup |
@@ -749,6 +786,8 @@ execution_time_seconds REAL
 **Merge Workflow (v0.4.4):** Temp file created → Download → Save as Current (copies, not moves) → Archive previous
 **Filename Strategy (v0.4.4):** Configured in Settings, archives use: {filename}.{timestamp}
 **Fresh Settings:** MergePage fetches settings before each operation (merge/download/save)
+**Constants (v0.4.5):** Centralized folder mappings and validation in `backend/constants.py`
+**Folder Validation (v0.4.5):** Via `get_folder_name()` - validates timeframe/feed_type combinations and returns path
 
 ---
 
@@ -771,6 +810,14 @@ rm /config/app.db                                   # Reset (will recreate)
 curl http://localhost:9193/api/health               # Test API
 rm -rf /opt/epg-merge-app/backend/static            # Clear cache
 bash /opt/epg-merge-app/scripts/build.sh            # Rebuild
+```
+
+**Constants/Folder mapping issue?**
+```bash
+python3 -c "from backend.constants import get_folder_name; print(get_folder_name('14', 'iptv'))"
+# Should output: iptv
+python3 -c "from backend.constants import get_folder_name; print(get_folder_name('14', 'gracenote'))"
+# Should output: (empty string for root)
 ```
 
 ---

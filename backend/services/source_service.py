@@ -8,17 +8,12 @@ import re
 from typing import List, Dict, Any
 import httpx
 from config import Config
+from constants import get_folder_name, get_update_frequency
 from .base_service import BaseService
 
 
 class SourceService(BaseService):
     """Handles source file discovery and management"""
-    
-    FOLDER_MAP = {
-        "3": {"iptv": "3dayiptv", "gracenote": "3daygracenote"},
-        "7": {"iptv": "7dayiptv", "gracenote": "7daygracenote"},
-        "14": {"iptv": "14dayiptv", "gracenote": "14daygracenote"}
-    }
     
     def __init__(self, config: Config):
         """Initialize source service
@@ -39,10 +34,12 @@ class SourceService(BaseService):
             Dictionary with sources list and metadata
         
         Raises:
+            ValueError: If timeframe/feed_type combination is invalid
             Exception: If fetch fails
         """
         try:
-            folder = self.FOLDER_MAP.get(timeframe, {}).get(feed_type, "3dayiptv")
+            # Validate and get folder name using constants
+            folder = get_folder_name(timeframe, feed_type)
             url = f"https://share.jesmann.com/{folder}/"
             
             self.logger.info(f"Fetching from: {url}")
@@ -60,8 +57,12 @@ class SourceService(BaseService):
                     "sources": unique_files,
                     "total": len(unique_files),
                     "folder": folder,
-                    "url": url
+                    "url": url,
+                    "update_frequency": get_update_frequency(timeframe)
                 }
+        except ValueError as e:
+            self.logger.error(f"Validation error: {e}")
+            raise
         except httpx.RequestError as e:
             self.logger.error(f"Network error: {e}")
             raise

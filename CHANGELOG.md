@@ -4,6 +4,56 @@ All notable changes to the EPG Merge Application are documented in this file.
 
 ---
 
+## [0.4.5] - 2025-11-01
+
+### Added
+- **Centralized Constants Module** (`backend/constants.py`)
+  - Single source of truth for folder mappings (FOLDER_MAP)
+  - Helper functions: `get_folder_name()`, `get_update_frequency()`
+  - Clear documentation of source provider structure
+  - Validation with descriptive error messages
+
+### Changed
+- **Folder Mapping Management:**
+  - Moved FOLDER_MAP from individual services to shared `constants.py`
+  - Eliminated duplication across `source_service.py` and `merge_service.py`
+  - Added validation layer with `get_folder_name()` function
+  - Improved error handling (explicit validation vs silent failures)
+
+- **Service Updates:**
+  - `source_service.py` - Now imports and uses `get_folder_name()` from constants
+  - `merge_service.py` - Now imports and uses `get_folder_name()` from constants
+  - Both services simplified by removing local FOLDER_MAP definitions
+
+- **14-Day Feed Mapping Correction:**
+  - **14-day IPTV:** Maps to `iptv/` folder
+  - **14-day Gracenote:** Maps to empty string (root level access)
+  - Verified against actual share.jesmann.com structure
+
+### Technical Details
+- **New File:** `backend/constants.py` (60 lines)
+- **Modified Files:**
+  - `backend/services/source_service.py` - Imports constants, removed duplicate FOLDER_MAP
+  - `backend/services/merge_service.py` - Imports constants, removed duplicate folder_map
+- **No Breaking Changes** - All API contracts remain unchanged
+- **Database:** No schema changes
+
+### Benefits
+- ✅ Single source of truth for folder mappings
+- ✅ Explicit validation instead of silent failures
+- ✅ DRY principle - No duplication across services
+- ✅ Easier maintenance if source provider structure changes
+- ✅ Better error messages for invalid timeframe/feed_type combinations
+- ✅ Extensibility for future timeframe options
+
+### Testing Status
+- ✅ All existing tests continue to pass (56+)
+- ✅ 14-day IPTV tested and working
+- ✅ 14-day Gracenote tested and working
+- ✅ Error validation confirmed
+
+---
+
 ## [0.4.4] - 2025-11-01
 
 ### Added
@@ -432,6 +482,6 @@ Starting with v0.4.1, version is managed from a **single source of truth**:
 
 ---
 
-**Latest Version:** 0.4.4  
+**Latest Version:** 0.4.5  
 **Maintainer:** di5cord20  
 **Repository:** https://github.com/di5cord20/epg-merge

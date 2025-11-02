@@ -61,11 +61,35 @@ export const SourcesPage = ({ onSave }) => {
       <h2>📁 Select Sources</h2>
       
       <div className="section">
+        {/* Feed Type Description Section */}
+        <div style={{
+          marginBottom: '25px',
+          padding: '14px',
+          background: 'rgba(59, 130, 246, 0.08)',
+          border: '1px solid rgba(59, 130, 246, 0.2)',
+          borderRadius: '6px',
+          fontSize: '13px',
+          lineHeight: '1.6',
+          color: '#cbd5e1'
+        }}>
+          <div style={{ marginBottom: '10px' }}>
+            <strong style={{ color: '#60a5fa' }}>📖 Feed Format Guide:</strong>
+          </div>
+          <div style={{ marginLeft: '12px' }}>
+            <div style={{ marginBottom: '8px' }}>
+              <strong style={{ color: '#a5f3fc' }}>IPTV:</strong> Channel identifiers use <code style={{ background: 'rgba(0,0,0,0.2)', padding: '2px 4px', borderRadius: '3px' }}>channelname.countrycode</code> format. Best for matching to tvg-id in M3U playlists. Updated once daily in afternoon for 3/7-day feeds, or three times daily (Overnight, Morning, Evening) for 14-day feed.
+            </div>
+            <div>
+              <strong style={{ color: '#a5f3fc' }}>Gracenote:</strong> Channel identifiers match Gracenote IDs directly. Use this if you have Gracenote IDs in your channel profile (Dispatcharr) or obtained via Channel Identifiarr. Updated once daily in afternoon for 3/7-day feeds, or three times daily (Overnight, Morning, Evening) for 14-day feed.
+            </div>
+          </div>
+        </div>
+        
         <div className="config-row">
           <div className="config-group">
             <label>Timeframe</label>
             <div className="radio-group">
-              {['3', '7'].map(val => (
+              {['3', '7', '14'].map(val => (
                 <label key={val} className="radio-label">
                   <input
                     type="radio"
