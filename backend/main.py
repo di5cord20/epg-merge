@@ -129,6 +129,10 @@ async def startup_event():
     job_service.init_job_history_table()
     logger.info("✅ Job history initialized")
 
+    logger.info("⏱️ Starting scheduled merge scheduler...")
+    job_service.start_scheduler()
+    logger.info("✅ Scheduler started - will run merges based on settings")
+
     logger.info(f"📁 Config: {config.config_dir}")
     logger.info(f"📦 Archives: {config.archive_dir}")
     logger.info(f"💾 Cache: {config.cache_dir}")

@@ -40,6 +40,7 @@ class MemoryMonitor:
         self.process = psutil.Process(os.getpid())
         self._monitoring = False
         self._monitor_task = None
+        self.scheduler_task: Optional[asyncio.Task] = None
     
     async def start(self) -> None:
         """Start memory monitoring"""
@@ -481,7 +482,77 @@ class ScheduledJobService:
             self.current_job_task = None
             await memory_monitor.stop()
             self.logger.info(f"Job service cleanup complete")
+
+    # =========================================================================
+    # SCHEDULER FOR DOCKER
+    # =========================================================================
     
+    async def start_scheduler(self):
+        """Start the cron scheduler for automated merges"""
+        try:
+            # Create background task for scheduler
+            self.scheduler_task = asyncio.create_task(self._run_scheduler())
+            self.logger.info("✅ Scheduler task created")
+        except Exception as e:
+            self.logger.error(f"Error starting scheduler: {e}")
+
+    async def _run_scheduler(self):
+        """Background task that runs the scheduler"""
+        from croniter import croniter
+        
+        while True:
+            try:
+                # Get settings
+                settings = self.settings_service.get_all()
+                merge_schedule = settings.get('merge_schedule', 'daily')
+                merge_time = settings.get('merge_time', '00:00')
+                merge_days = settings.get('merge_days', '[]')
+                
+                # Build cron expression
+                hours, minutes = merge_time.split(':')
+                if merge_schedule == 'daily':
+                    cron_expr = f"{minutes} {hours} * * *"
+                else:  # weekly
+                    try:
+                        days = json.loads(merge_days) if isinstance(merge_days, str) else merge_days
+                        days_str = ','.join(str(int(d)) for d in days)
+                    except:
+                        days_str = "0,1,2,3,4,5,6"
+                    cron_expr = f"{minutes} {hours} * * {days_str}"
+                
+                # Calculate seconds until next run
+                cron = croniter(cron_expr, datetime.now())
+                next_run = cron.get_next(datetime)
+                seconds_until_run = (next_run - datetime.now()).total_seconds()
+                
+                self.logger.info(f"⏱️ Next scheduled merge: {next_run} ({seconds_until_run:.0f}s from now)")
+                
+                # Sleep until next run
+                await asyncio.sleep(seconds_until_run)
+                
+                # Execute merge
+                self.logger.info("🔄 Executing scheduled merge...")
+                await self.execute_scheduled_merge()
+                
+            except asyncio.CancelledError:
+                self.logger.info("Scheduler stopped")
+                break
+            except Exception as e:
+                self.logger.error(f"Scheduler error: {e}", exc_info=True)
+                # Wait 60 seconds before retrying
+                await asyncio.sleep(60)
+
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        """Cleanup on shutdown"""
+        logger.info("🛑 Shutting down EPG Merge Application")
+        
+        # Stop scheduler
+        if hasattr(job_service, 'scheduler_task'):
+            job_service.scheduler_task.cancel()
+        
+        db.close()
+
     # =========================================================================
     # NOTIFICATIONS
     # =========================================================================
