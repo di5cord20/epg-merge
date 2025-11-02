@@ -4,7 +4,7 @@
  * Tests: /data/tmp/, /data/current/, /data/archives/
  * 
  * Run: npm test -- integration-phase3.test.js
- * Requires: Backend running on http://localhost:9193
+ * Requires: Backend running on 
  */
 
 beforeEach(() => {

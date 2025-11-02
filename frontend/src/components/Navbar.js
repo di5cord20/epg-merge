@@ -27,7 +27,7 @@ export const Navbar = ({ currentPage, onPageChange, onThemeToggle, darkMode }) =
     const fetchVersion = async () => {
       try {
         // Use same API base as useApi hook
-        const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9193';
+        const apiBase = process.env.REACT_APP_API_BASE || '';
         const response = await fetch(`${apiBase}/api/health`);
         if (response.ok) {
           const data = await response.json();
