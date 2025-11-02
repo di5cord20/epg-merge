@@ -20,13 +20,15 @@ const TABS = [
  * @returns {React.ReactElement} Navbar component
  */
 export const Navbar = ({ currentPage, onPageChange, onThemeToggle, darkMode }) => {
-  const [version, setVersion] = useState('0.3.7');
+  const [version, setVersion] = useState('0.4.6');
 
   // Fetch version from API on mount
   useEffect(() => {
     const fetchVersion = async () => {
       try {
-        const response = await fetch('/api/health');
+        // Use same API base as useApi hook
+        const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9193';
+        const response = await fetch(`${apiBase}/api/health`);
         if (response.ok) {
           const data = await response.json();
           if (data.version) {
@@ -60,14 +62,6 @@ export const Navbar = ({ currentPage, onPageChange, onThemeToggle, darkMode }) =
       </div>
       <div className="nav-right">
         <span className="version">v{version}</span>
-        {/* Theme toggle - disabled for v0.3.7, re-add when light mode is redesigned */}
-        {/* <button 
-          className="theme-toggle" 
-          onClick={onThemeToggle}
-          aria-label="Toggle theme"
-        >
-          {darkMode ? '🌙' : '☀️'}
-        </button> */}
       </div>
     </nav>
   );
