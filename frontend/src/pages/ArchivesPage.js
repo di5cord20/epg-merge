@@ -77,7 +77,7 @@ export const ArchivesPage = () => {
 
   const handleDownload = async (filename) => {
     try {
-      const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9193';
+      const apiBase = process.env.REACT_APP_API_BASE || '';
       
       // Archives page always downloads the exact filename as stored on disk
       // is_current files are in /data/current/, archived files are in /data/archives/

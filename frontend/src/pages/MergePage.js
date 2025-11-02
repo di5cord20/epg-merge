@@ -138,7 +138,7 @@ export const MergePage = ({ selectedSources, settings }) => {
         const settingsResponse = await fetch(
           process.env.REACT_APP_API_BASE 
             ? `${process.env.REACT_APP_API_BASE}/api/settings/get`
-            : 'http://localhost:9193/api/settings/get'
+            : '/api/settings/get'
         );
         if (settingsResponse.ok) {
           const freshSettings = await settingsResponse.json();
@@ -258,7 +258,7 @@ export const MergePage = ({ selectedSources, settings }) => {
         const settingsResponse = await fetch(
           process.env.REACT_APP_API_BASE 
             ? `${process.env.REACT_APP_API_BASE}/api/settings/get`
-            : 'http://localhost:9193/api/settings/get'
+            : '/api/settings/get'
         );
         if (settingsResponse.ok) {
           const freshSettings = await settingsResponse.json();
@@ -271,7 +271,7 @@ export const MergePage = ({ selectedSources, settings }) => {
       
       addLog(`[*] Downloading current merge (${downloadFilename})...`);
 
-      const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9193';
+      const apiBase = process.env.REACT_APP_API_BASE || '';
       // Download from /data/tmp/ (temporary merge file)
       const url = `${apiBase}/api/merge/download/${downloadFilename}`;
 
@@ -321,7 +321,7 @@ export const MergePage = ({ selectedSources, settings }) => {
         const settingsResponse = await fetch(
           process.env.REACT_APP_API_BASE 
             ? `${process.env.REACT_APP_API_BASE}/api/settings/get`
-            : 'http://localhost:9193/api/settings/get'
+            : '/api/settings/get'
         );
         if (settingsResponse.ok) {
           const freshSettings = await settingsResponse.json();
@@ -371,7 +371,7 @@ export const MergePage = ({ selectedSources, settings }) => {
     
     // Clear temporary merge files from /data/tmp/
     try {
-      const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9193';
+      const apiBase = process.env.REACT_APP_API_BASE || '';
       const response = await fetch(`${apiBase}/api/merge/clear-temp`, {
         method: 'POST'
       });
