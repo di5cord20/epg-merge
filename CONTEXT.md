@@ -3,7 +3,7 @@
 ---
 
 ⚠️ **IMPORTANT:** Update this file after each commit to keep it current for future AI conversations.  
-**Current Version:** 0.4.6  
+**Current Version:** 0.4.7
 **Last Updated:** November 2, 2025 (Router Refactoring Complete)  
 **Status:** Production Ready | Tests: 56+/56+ passing
 
@@ -361,40 +361,47 @@ FOLDER_MAP = {
 
 ### Feature: Scheduled Merge Execution with Monitoring (v0.4.7)
 **Files:**
-- `backend/services/job_service.py` - Job execution, memory tracking, timeout monitoring
+- `backend/services/job_service.py` - Job execution, memory tracking, timeout monitoring, background scheduler
 - `backend/routers/jobs.py` - Job management endpoints
+- `backend/main.py` - Scheduler initialization and lifecycle
 - `frontend/src/pages/DashboardPage.js` - Job history display and Clear History button
 
 **What it does:**
-1. Executes scheduled merges with configurable timeout monitoring (soft-limit)
+1. Runs scheduled merges automatically based on user settings (daily or weekly)
 2. Tracks peak memory usage via `psutil` (accurate process memory)
 3. Sends Discord notifications with 8 statistics on completion
 4. Stores job history with all execution details
 5. Provides Clear History button to delete all job records
 6. Manual merge trigger endpoint for testing (`/api/jobs/execute-now`)
+7. **Background scheduler runs continuously** - recalculates next run time when settings change
 
-**New Database Columns (v0.4.7):**
-```sql
-ALTER TABLE job_history ADD COLUMN peak_memory_mb REAL;
-ALTER TABLE job_history ADD COLUMN days_included INTEGER;
+**Scheduler Details (v0.4.7):**
+- Runs as background async task in FastAPI startup
+- Reads merge_schedule, merge_time, merge_days from settings
+- Calculates next run using croniter
+- Sleeps until next scheduled run
+- Executes merge, then recalculates next run
+- Survives settings changes (recalculates on each cycle)
+- Logs all execution to container logs via `docker compose logs backend`
+
+**How to Test:**
+```bash
+# View scheduler logs
+docker compose logs backend | grep -i scheduler
+
+# Check next scheduled run
+curl http://localhost:9193/api/jobs/status | jq '.next_scheduled_run'
+
+# Change settings and verify scheduler recalculates
+curl -X POST http://localhost:9193/api/settings/set \
+  -H "Content-Type: application/json" \
+  -d '{"merge_time": "12:00", "merge_schedule": "daily"}'
+
+# Check logs for recalculation
+docker compose logs backend | grep "Next scheduled"
 ```
 
-**New Endpoints (v0.4.7):**
-- `POST /api/jobs/execute-now` - Manually trigger merge (testing)
-- `POST /api/jobs/clear-history` - Delete all job history records
-
-**New Dependencies (v0.4.7):**
-- `psutil>=5.8.0` - Process memory monitoring
-
-**To modify:**
-- Job execution logic → edit `backend/services/job_service.py`
-- Job endpoints → edit `backend/routers/jobs.py`
-- Dashboard display → edit `frontend/src/pages/DashboardPage.js`
-- Timeout behavior → modify `execute_scheduled_merge()` in job_service.py
-- Memory tracking → uses `MemoryMonitor` class in job_service.py
-
-**Note:** Timeout is currently a "soft limit" for monitoring (logs warning if exceeded).
-Hard timeout enforcement would require async I/O refactoring of merge_service.
+**Current Status:** ✅ Active and working in Docker deployments
 
 ---
 

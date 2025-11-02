@@ -9,13 +9,15 @@ All notable changes to the EPG Merge Application are documented in this file.
 ### Added
 - Peak memory tracking for scheduled merge jobs using `psutil`
 - Timeout monitoring (soft-limit advisory) for merge execution
-- Enhanced Discord notifications with 8 statistics:
-  - Filename, Created timestamp, Output size
-  - Channels kept, Programs included, Days included
-  - Peak memory, Duration
+- Enhanced Discord notifications with 8 statistics
 - Manual merge trigger endpoint: `POST /api/jobs/execute-now`
 - Clear job history endpoint: `POST /api/jobs/clear-history`
 - Clear History button on Dashboard with confirmation dialog
+- **Background scheduler - automatically executes merges based on user settings**
+  - Runs as async task in FastAPI
+  - Daily or weekly scheduling
+  - Auto-recalculates when settings change
+  - Full logging via docker compose logs
 - Job history now includes: `peak_memory_mb`, `days_included`, `error_message`
 - Automatic database schema migration for new columns
 - `psutil>=5.8.0` dependency for memory monitoring
@@ -24,20 +26,35 @@ All notable changes to the EPG Merge Application are documented in this file.
 - Job history table schema updated with memory and days tracking
 - `MergeService._download_sources()` signature fixed
 - Docker Dockerfile fallback: `npm ci || npm install`
-- Docker Compose volume mounts corrected: `./data:/data`, `./config:/config`
+- Docker Compose volume mounts corrected
 - `.dockerignore` updated to include `frontend/package-lock.json`
+- Frontend API calls use relative paths for nginx proxy
+- Scheduler activation in main.py startup event
 
 ### Fixed
 - Fixed merge service download function signature
 - Fixed Docker build context for frontend dependencies
 - Fixed Docker permission errors with proper volume mounts
-- Database schema migration now handles existing columns gracefully
+- Fixed Frontend API routing through nginx proxy
+- Database schema migration handles existing columns gracefully
+- Scheduler properly awaited with asyncio.create_task()
 
 ### Infrastructure
 - Timeout is currently a "soft limit" (logs warning if exceeded)
 - Hard timeout enforcement deferred (requires async I/O refactoring)
 - Memory monitoring samples every 100ms during merge execution
 - Job history automatically cleaned up based on retention policy
+- **Scheduler runs continuously in background** - survives container restarts
+
+### Testing
+- ✅ Phase 1: Local API testing - all tests passing
+- ✅ Phase 2: Docker testing - all tests passing
+- ✅ Phase 3: LXC Docker deployment - all tests passing
+- ✅ Scheduler activation - working and tested
+
+### Known Limitations
+- HTTPS blob download warning (cosmetic, doesn't affect functionality)
+- Timezone must be set via TZ environment variable in docker-compose.yml
 
 ---
 
