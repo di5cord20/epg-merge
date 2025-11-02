@@ -3,7 +3,9 @@
 ---
 
 ⚠️ **IMPORTANT:** Update this file after each commit to keep it current for future AI conversations.  
-**Last Updated:** November 1, 2025 (v0.4.5 Complete)
+**Current Version:** 0.4.6  
+**Last Updated:** November 2, 2025 (Router Refactoring Complete)  
+**Status:** Production Ready | Tests: 56+/56+ passing
 
 ---
 
@@ -224,6 +226,8 @@ Testing:   Jest (frontend) + Pytest (backend) - 56+ tests passing
 ## 🏗️ Architecture Overview
 
 ```
+Architecture Overview (v0.4.6)
+
 ┌─────────────────────────────────────────┐
 │ Frontend (React 18)                     │
 │ - 6 Pages + 10 Sub-components           │
@@ -234,13 +238,37 @@ Testing:   Jest (frontend) + Pytest (backend) - 56+ tests passing
                  │ HTTP REST API
                  ↓
 ┌────────────────────────────────────────┐
-│ Backend (FastAPI)                      │
-│ - 6 Services (business logic)          │
-│ - 15 API endpoints (13 + 2 new)        │
-│ - Configurable output_filename         │
-│ - New directory structure (/data/*)    │
-│ - Copy not move workflow               │
-│ - Centralized constants                │ ← NEW v0.4.5
+│ Backend (FastAPI) - v0.4.6              │
+│ ┌──────────────────────────────────┐   │
+│ │ main.py (63 lines)               │   │ ← NEW v0.4.6
+│ │ - Orchestrator pattern           │   │
+│ │ - Service initialization         │   │
+│ │ - Router registration            │   │
+│ │ - Lifecycle & error handlers     │   │
+│ └──────────────────────────────────┘   │
+│               ↓                         │
+│ ┌────────────────────────────────────┐ │
+│ │ 7 Modular Routers (routers/)       │ │ ← NEW v0.4.6
+│ │ - health.py (40 lines)             │ │
+│ │ - sources.py (45 lines)            │ │
+│ │ - channels.py (95 lines)           │ │
+│ │ - merge.py (110 lines)             │ │
+│ │ - archives.py (105 lines)          │ │
+│ │ - settings.py (35 lines)           │ │
+│ │ - jobs.py (110 lines)              │ │
+│ └────────────────────────────────────┘ │
+│               ↓                         │
+│ ┌────────────────────────────────────┐ │
+│ │ 6 Services (business logic)        │ │
+│ │ - Source, Channel, Merge, Archive, │ │
+│ │   Settings, Job Services           │ │
+│ └────────────────────────────────────┘ │
+│               ↓                         │
+│ ┌────────────────────────────────────┐ │
+│ │ Database & Configuration           │ │
+│ │ - SQLite (app.db)                  │ │
+│ │ - Environment variables            │ │
+│ └────────────────────────────────────┘ │
 └────────────────┬─────────────────────────┘
                  │
         ┌────────┴────────┐
@@ -281,6 +309,53 @@ FOLDER_MAP = {
 ```
 
 **To modify:** Edit `constants.py` to update folder mappings or add new validation functions. Both `source_service.py` and `merge_service.py` automatically use the updated constants.
+
+---
+
+### Feature: Backend Router Architecture (NEW - v0.4.6)
+**Files:**
+- `backend/main.py` - Orchestrator (63 lines, down from 400+)
+- `backend/routers/__init__.py` - Router package initialization
+- `backend/routers/health.py` - Health check & status endpoints
+- `backend/routers/sources.py` - Source selection endpoints
+- `backend/routers/channels.py` - Channel management endpoints
+- `backend/routers/merge.py` - Merge execution endpoints
+- `backend/routers/archives.py` - Archive management endpoints
+- `backend/routers/settings.py` - Settings configuration endpoints
+- `backend/routers/jobs.py` - Scheduled job monitoring endpoints
+
+**What it does:**
+1. Breaks up monolithic main.py into feature-based routers
+2. Each router is 35-110 lines (focused and maintainable)
+3. `main.py` becomes clean orchestrator:
+   - Imports all services and routers
+   - Initializes services with config
+   - Calls `init_*_routes(dependencies)` for each router
+   - Registers routers with `app.include_router()`
+   - Handles lifecycle events (startup/shutdown)
+   - Registers global error handlers
+4. Follows FastAPI best practices (router pattern with dependency injection)
+5. No functional changes - all endpoints work identically
+
+**Router Pattern:**
+- Each router has `init_*_routes(dependencies)` function
+- Dependencies injected from main.py (db, services, config)
+- Routers are isolated (can test independently)
+- All logging and error handling preserved per router
+- Endpoints remain at same paths (e.g., `/api/merge/execute` unchanged)
+
+**Benefits:**
+- ✅ Easy to locate endpoints (by feature, not scrolling 400+ lines)
+- ✅ Easy to test (test individual routers independently)
+- ✅ Easy to extend (add new routers for new features)
+- ✅ Better code organization (aligns with FastAPI standards)
+- ✅ Faster development (smaller, focused files)
+- ✅ Better for AI conversations (AI can focus on one router at a time)
+
+**To modify:** 
+- Edit specific router for that endpoint (e.g., merge logic → edit `routers/merge.py`)
+- For cross-router coordination, update main.py orchestration
+- Services remain unchanged (business logic stays in `services/`)
 
 ---
 
@@ -737,6 +812,34 @@ execution_time_seconds REAL
 3. No changes needed to individual services
 4. Error handling automatically validates via `get_folder_name()`
 
+### Modify Backend API Endpoints (v0.4.6+)
+1. Identify which feature the endpoint belongs to: health, sources, channels, merge, archives, settings, or jobs
+2. Edit the appropriate router in `backend/routers/{feature}.py`
+3. All dependencies (db, services, config) are already available in the router
+4. Changes are immediately included via `app.include_router()` in main.py
+5. No main.py changes needed unless adding a completely new router
+
+**Example: Modify merge timeout handling**
+- Edit: `backend/routers/merge.py` → `execute_merge()` function
+- Change timeout validation or error handling
+- Restart backend
+- Test: `curl -X POST http://localhost:9193/api/merge/execute -d '{...}'`
+- No main.py changes needed
+
+**Example: Add new endpoint to channels**
+- Edit: `backend/routers/channels.py` → inside `init_channels_routes()`
+- Add new `@router.post(...)` function
+- Router already has `channel_service` and `db` available
+- Restart backend
+- Test: `curl http://localhost:9193/api/channels/new-endpoint`
+
+**Example: Add completely new router (rare)**
+1. Create `backend/routers/newfeature.py` with `init_newfeature_routes(dependencies)` function
+2. Add import in `main.py`: `from routers import newfeature`
+3. Add initialization in main.py: `newfeature.init_newfeature_routes(...)`
+4. Add registration in main.py: `app.include_router(newfeature.router)`
+5. This is rarely needed - most features fit in existing routers
+
 ---
 
 ## 🔄 Workflow for AI Conversations
@@ -748,7 +851,31 @@ execution_time_seconds REAL
 3. **Include only relevant code** from the files listed
 4. **We iterate** without needing the entire repo
 
-### Example Conversation Starter:
+### Important: Preserving Documentation Structure
+
+**When updating CONTEXT.md or other docs:**
+- ✅ **Always preserve historical information** - Never delete previous versions, features, or notes
+- ✅ **Only add/update relevant sections** - Don't rewrite entire docs
+- ✅ **Explain any removals** - If you feel historical info is no longer needed, ask me first
+- ✅ **Use targeted updates** - Provide before/after for specific sections only
+- ✅ **AI retains memory through docs** - These docs are my persistent memory across conversations with no history
+
+**Example conversation for doc updates:**
+
+> "I want to update CONTEXT.md to reflect the new router architecture. Here's the current version: [paste relevant section]. I want to:
+> 1. Update the architecture diagram to show routers
+> 2. Add a new feature section for router architecture
+> 3. Update the version history table
+> 
+> Can you provide before/after for each section so I can manually apply the updates?"
+
+**This approach:**
+- Ensures docs remain clean references for future AI conversations
+- Preserves all historical context (versions, features, decisions)
+- Maintains control over documentation structure
+- Keeps docs aligned with actual codebase
+
+### Example Conversation Starter (Code Changes):
 
 > "I want to improve the archive cleanup logic. Here's the relevant code: [paste from CONTEXT.md Feature section] and [paste current implementation]. What would you recommend?"
 
@@ -760,6 +887,7 @@ execution_time_seconds REAL
 
 | Version | Date | Major Changes |
 |---------|------|---------------|
+| 0.4.6 | Nov 2, 2025 | Router refactoring: modular routers, clean orchestrator, main.py 63 lines |
 | 0.4.5 | Nov 1, 2025 | Centralized constants, folder mapping validation, eliminated duplication |
 | 0.4.4 | Nov 1, 2025 | Configurable filename, new directory structure, copy workflow, 56+ tests |
 | 0.4.3 | Nov 1, 2025 | Documentation cleanup: consolidated 8 files, flat structure, zero duplication |
@@ -818,6 +946,27 @@ python3 -c "from backend.constants import get_folder_name; print(get_folder_name
 # Should output: iptv
 python3 -c "from backend.constants import get_folder_name; print(get_folder_name('14', 'gracenote'))"
 # Should output: (empty string for root)
+```
+
+**Router or endpoint not loading?**
+```bash
+# Check if routers are properly imported and registered in main.py
+grep "include_router" backend/main.py
+
+# Expected output: 7 lines (one per router)
+# app.include_router(health.router)
+# app.include_router(sources.router)
+# etc.
+
+# Test specific endpoint to verify router is working
+curl http://localhost:9193/api/health           # health router
+curl http://localhost:9193/api/sources/list     # sources router  
+curl http://localhost:9193/api/merge/current    # merge router
+
+# Verify routers directory exists with all 7 files
+ls -la backend/routers/
+# Should show: __init__.py, health.py, sources.py, channels.py, 
+#              merge.py, archives.py, settings.py, jobs.py
 ```
 
 ---

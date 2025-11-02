@@ -1,0 +1,82 @@
+{
+  "name": "EPG Merge Development",
+  "version": "1.0",
+  "description": "Full-stack EPG Merge development environment",
+
+  // Use Docker Compose as the base
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "backend",
+  "workspaceFolder": "/workspace",
+
+  // VS Code settings
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "charliermarsh.ruff",
+        "ms-vscode.makefile-tools",
+        "ms-vscode-remote.remote-containers"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "python.formatting.provider": "black",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.python",
+          "editor.formatOnSave": true
+        }
+      }
+    }
+  },
+
+  // Features
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+
+  // Environment
+  "remoteEnv": {
+    "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+  },
+
+  // Ports
+  "forwardPorts": [3000, 9193, 80],
+  "portsAttributes": {
+    "3000": {
+      "label": "Frontend Dev",
+      "onAutoForward": "notify"
+    },
+    "9193": {
+      "label": "Backend API",
+      "onAutoForward": "notify"
+    },
+    "80": {
+      "label": "Nginx",
+      "onAutoForward": "notify"
+    }
+  },
+
+  // Mount local workspace
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+  ],
+
+  // Post-create commands
+  "postCreateCommand": "sh .devcontainer/post-create.sh",
+
+  // Container args
+  "runArgs": [
+    "--network=host"
+  ],
+
+  // Restart policy
+  "remoteUser": "root"
+}

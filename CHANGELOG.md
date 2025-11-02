@@ -4,6 +4,64 @@ All notable changes to the EPG Merge Application are documented in this file.
 
 ---
 
+## [0.4.6] - 2025-11-02
+
+### Added
+- **Modular Router Architecture** - Backend refactoring from monolithic to feature-based routers
+  - `backend/routers/` directory with 7 feature-specific router files
+  - Each router handles: health, sources, channels, merge, archives, settings, jobs
+  - Router dependency injection pattern for cleaner service management
+  - `backend/routers/__init__.py` - Router package initialization
+
+### Changed
+- **Backend Structure Refactoring:**
+  - `main.py` reduced from 400+ lines to 63 lines (clean orchestrator)
+  - Endpoints moved to feature-based routers (35-110 lines each)
+  - Main.py now focuses on: app initialization, middleware, service setup, lifecycle, error handlers
+  - Router files: `health.py`, `sources.py`, `channels.py`, `merge.py`, `archives.py`, `settings.py`, `jobs.py`
+
+- **Code Organization:**
+  - Follows FastAPI best practices (router pattern with dependency injection)
+  - Each router receives dependencies via `init_*_routes(dependencies)` function
+  - Routers included with `app.include_router(router)`
+  - Better separation of concerns (easy to locate and modify endpoints)
+
+### Fixed
+- Improved code maintainability and readability
+- Each router is now focused enough to understand in one view
+- Easier to test individual features independently
+
+### Technical Details
+- **No API Changes** - All endpoints remain at same paths (e.g., `/api/merge/execute` unchanged)
+- **No Functional Changes** - All endpoints work identically to v0.4.5
+- **All Existing Tests Pass** - 56+ tests require no modifications
+- **Database:** No schema changes
+- **Version Display:** Still uses `backend/version.py` as single source of truth
+- **All Services Unchanged:** Business logic remains in service layer
+
+### Migration Notes
+- All API contracts remain unchanged
+- No frontend changes required
+- No database migration needed
+- Existing deployments can update without reconfiguration
+- Directory structure unchanged (files only moved within backend/)
+
+### Benefits
+- ✅ Easier to maintain - Find endpoints by feature area
+- ✅ Easier to test - Test individual routers independently
+- ✅ Easier to extend - Add new routers for new features
+- ✅ Better code organization - Aligns with FastAPI standards
+- ✅ Faster development - Less scrolling through 400-line files
+- ✅ Reduced cognitive load - Smaller files (35-110 lines each)
+
+### Testing Status
+- ✅ All 56+ existing tests pass without modification
+- ✅ All API endpoints tested and working
+- ✅ Health and status endpoints verified (version display working)
+- ✅ Full feature coverage maintained
+
+---
+
 ## [0.4.5] - 2025-11-01
 
 ### Added
