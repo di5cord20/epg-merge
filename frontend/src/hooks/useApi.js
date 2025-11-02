@@ -15,8 +15,7 @@ export const useApi = () => {
     setError(null);
     
     try {
-      // Use environment variable for API base URL, fallback to localhost:9193 for local dev
-      const apiBase = process.env.REACT_APP_API_BASE || 'http://localhost:9193';
+      const apiBase = process.env.REACT_APP_API_BASE || '';
       const url = `${apiBase}${endpoint}`;
       
       const response = await fetch(url, {
