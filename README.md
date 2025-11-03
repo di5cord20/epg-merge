@@ -1,39 +1,34 @@
 # EPG Merge Application
 
-> **Production-grade TV feed merger** combining multiple XMLTV EPG files with channel filtering, archiving, and scheduling.
+> **TV feed merger** combining multiple XMLTV EPG files with channel filtering, archiving, and scheduling.
 
-**Version:** 0.4.5 | **Status:** Production Ready | **Tests:** 56+/56+ passing
-
----
-
-## Quick Start
-
-### Docker (Recommended)
-```bash
-git clone https://github.com/di5cord20/epg-merge.git
-cd epg-merge
-cp .env.example .env
-docker-compose up -d
-```
-Visit: http://localhost:9193
-
-### Manual Installation
-```bash
-sudo bash install/install.sh
-```
+**Version:** 0.4.7 | **Status:** Production Ready | **Tests:** 56+/56+ passing
 
 ---
+
+## EPG Merge - Docker Deployment
+
+## 🚀 Quick Start
+```bash
+cd /opt
+git clone https://github.com/di5cord20/epg-merge.git epg-merge-app
+cd epg-merge-app
+mkdir -p ./data/{tmp,current,archives} ./config
+docker compose up -d
+```
+
+Open http://your-server-ip
+
+👉 **[Full Docker Guide](docs/DOCKER_DEPLOYMENT.md)** | **[Quick Start Card](docs/DOCKER_QUICKSTART.md)**
 
 ## Features
 
-✅ **Multi-source EPG merging** - Combine multiple XML feeds from share.jesmann.com  
-✅ **Channel filtering** - Select specific channels from available sources  
-✅ **Archive management** - Full version history with metadata tracking  
-✅ **Scheduled merges** - Cron-based automation (ready to enable)  
-✅ **Discord notifications** - Optional webhook support (ready to enable)  
-✅ **Smart caching** - HTTP HEAD checks prevent unnecessary downloads  
-✅ **Dark mode UI** - Responsive React 18 frontend  
-✅ **Centralized configuration** - Single source of truth for folder mappings (v0.4.5)  
+- ✅ Automatic scheduled merges (runs in background)
+- ✅ Memory tracking for performance monitoring
+- ✅ Discord notifications on completion
+- ✅ Job history & archive management
+- ✅ Web-based configuration (no command line needed)
+- ✅ Production-ready Docker deployment
 
 ---
 
