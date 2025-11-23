@@ -1,13 +1,12 @@
-// removed "useEffect" - import React, { useState, useEffect } from 'react';
 import React, { useState } from 'react';
 import { useApi } from '../hooks/useApi';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { DualListSelector } from '../components/DualListSelector';
 
 /**
- * Channels page component
+ * Channels page component - v0.4.8
  * Allows users to select channels from loaded sources
- * Features export/import of channel backups
+ * Features export/import of channel backups and save with versioning
  * 
  * @param {Array} selectedSources - Sources selected on previous page
  * @returns {React.ReactElement} Channels page component
@@ -38,11 +37,15 @@ export const ChannelsPage = ({ selectedSources }) => {
   
   const saveChannels = async () => {
     try {
-      await call('/api/channels/select', {
+      // Save to backend with archive/versioning logic
+      const data = await call('/api/channels/save', {
         method: 'POST',
-        body: JSON.stringify({ channels: selectedChannels })
+        body: JSON.stringify({ 
+          channels: selectedChannels,
+          sources_count: selectedSources.length
+        })
       });
-      alert(`Channels saved (${selectedChannels.length} selected)`);
+      alert(`Channels saved (${selectedChannels.length} selected, ${selectedSources.length} sources)`);
     } catch (err) {
       alert('Error saving channels: ' + err.message);
     }
@@ -91,7 +94,7 @@ export const ChannelsPage = ({ selectedSources }) => {
   
   return (
     <div className="page-container">
-      <h2>📺 Select Channels</h2>
+      <h2>🔺 Select Channels</h2>
       
       <div className="section">
         <button 
@@ -124,13 +127,13 @@ export const ChannelsPage = ({ selectedSources }) => {
             className="btn btn-secondary"
             onClick={exportChannels}
           >
-            ⬇️ Export Backup
+            ⬇️ Export Channels
           </button>
           <button 
             className="btn btn-secondary"
             onClick={importChannels}
           >
-            ⬆️ Import Backup
+            ⬆️ Import Channels
           </button>
         </div>
       </div>

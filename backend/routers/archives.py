@@ -12,7 +12,7 @@ logger = setup_logging(__name__)
 router = APIRouter(tags=["Archives"])
 
 
-def init_archives_routes(archive_service, settings_service, db):
+def init_archives_routes(archive_service, settings_service, db, channel_service):
     """Initialize archives routes with dependencies"""
     
     @router.get("/api/archives/list")
@@ -98,3 +98,60 @@ def init_archives_routes(archive_service, settings_service, db):
         except Exception as e:
             logger.error(f"Error deleting archive: {e}")
             raise HTTPException(status_code=500, detail="Failed to delete archive")
+        
+    @router.get("/api/archives/download-channel/{filename}")
+    async def download_channel_version(filename: str):
+        """Download a channel version JSON file
+        
+        Args:
+            filename: Name of channel version file to download
+        
+        Returns:
+            File response with JSON content
+        """
+        try:
+            file_path = channel_service.get_channel_version_path(filename)
+            logger.info(f"✅ Downloading channel version: {filename}")
+            return FileResponse(file_path, media_type="application/json", filename=filename)
+        except FileNotFoundError as e:
+            logger.error(f"File not found: {e}")
+            raise HTTPException(status_code=404, detail=str(e))
+        except Exception as e:
+            logger.error(f"Error downloading channel version: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to download channel version")
+
+    @router.delete("/api/archives/delete-channel/{filename}")
+    async def delete_channel_version(filename: str):
+        """Delete an archived channel version (cannot delete current)
+        
+        Args:
+            filename: Name of channel version file to delete
+        """
+        try:
+            channels_filename = settings_service.get("channels_filename", "channels.json")
+            
+            # Prevent deletion of current channel file
+            if filename == channels_filename:
+                raise AppError("Cannot delete current channel version", 400)
+            
+            file_path = channel_service.get_channel_version_path(filename)
+            
+            # Delete the file
+            file_path.unlink()
+            logger.info(f"✅ Deleted channel version: {filename}")
+            
+            # Delete metadata from database if exists
+            if db:
+                try:
+                    db.delete_channel_version(filename)
+                except Exception as e:
+                    logger.warning(f"Could not delete channel version metadata from DB: {e}")
+            
+            return {"status": "success", "message": f"Deleted {filename}"}
+        
+        except AppError as e:
+            logger.error(f"App error: {e.message}")
+            raise HTTPException(status_code=e.status_code, detail=e.message)
+        except Exception as e:
+            logger.error(f"Error deleting channel version: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to delete channel version")

@@ -1,7 +1,8 @@
 """
-EPG Merge Application - Database Layer (v0.4.7)
+EPG Merge Application - Database Layer (v0.4.8)
 Enhanced with automatic schema migrations
 - Simplified persistence with SQLite as single source of truth
+- Added channel_versions table for tracking saved channels
 - Automatic column addition (v0.4.7: peak_memory_mb, days_included)
 - Removed redundant methods
 - Cleaner schema
@@ -66,6 +67,17 @@ class Database:
                 )
             ''')
             
+            # Channel versions table - metadata for saved channels JSON files
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS channel_versions (
+                    filename TEXT PRIMARY KEY,
+                    created_at TIMESTAMP,
+                    sources_count INTEGER,
+                    channels_count INTEGER,
+                    size_bytes INTEGER
+                )
+            ''')
+            
             # Job history table - scheduled merge execution records
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS job_history (
@@ -87,7 +99,7 @@ class Database:
             self._apply_migrations(cursor)
             
             conn.commit()
-            self.logger.info("✅ Database schema initialized")
+            self.logger.info("âœ… Database schema initialized")
         except Exception as e:
             self.logger.error(f"Failed to initialize database: {e}")
             raise
@@ -96,9 +108,10 @@ class Database:
         """Apply pending database migrations automatically
         
         v0.4.7 Migration: Add peak_memory_mb and days_included columns
+        v0.4.8 Migration: Add channel_versions table
         """
         try:
-            # Get existing columns
+            # Get existing columns in job_history
             cursor.execute("PRAGMA table_info(job_history)")
             existing_columns = {row[1] for row in cursor.fetchall()}
             
@@ -109,7 +122,7 @@ class Database:
                         ALTER TABLE job_history 
                         ADD COLUMN peak_memory_mb REAL DEFAULT NULL
                     ''')
-                    self.logger.info("✅ Migration: Added peak_memory_mb column")
+                    self.logger.info("âœ… Migration: Added peak_memory_mb column")
                 except sqlite3.OperationalError as e:
                     if "duplicate column name" in str(e).lower():
                         self.logger.debug("Column peak_memory_mb already exists")
@@ -123,7 +136,7 @@ class Database:
                         ALTER TABLE job_history 
                         ADD COLUMN days_included INTEGER DEFAULT NULL
                     ''')
-                    self.logger.info("✅ Migration: Added days_included column")
+                    self.logger.info("âœ… Migration: Added days_included column")
                 except sqlite3.OperationalError as e:
                     if "duplicate column name" in str(e).lower():
                         self.logger.debug("Column days_included already exists")
@@ -281,6 +294,53 @@ class Database:
             self.logger.info(f"Deleted archive metadata: {filename}")
         except Exception as e:
             self.logger.error(f"Error deleting archive '{filename}': {e}")
+            raise
+    
+    # ========== CHANNEL VERSIONS ==========
+    
+    def get_channel_version(self, filename: str) -> Optional[Dict[str, Any]]:
+        """Get channel version metadata by filename"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM channel_versions WHERE filename = ?",
+                (filename,)
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        except Exception as e:
+            self.logger.error(f"Error getting channel version '{filename}': {e}")
+            return None
+    
+    def save_channel_version(self, filename: str, sources_count: int, 
+                            channels_count: int, size_bytes: int) -> None:
+        """Save or update channel version metadata"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                '''INSERT OR REPLACE INTO channel_versions 
+                   (filename, created_at, sources_count, channels_count, size_bytes)
+                   VALUES (?, ?, ?, ?, ?)''',
+                (filename, datetime.now().isoformat(), sources_count, channels_count, size_bytes)
+            )
+            conn.commit()
+            self.logger.debug(f"Saved channel version metadata: {filename}")
+        except Exception as e:
+            self.logger.error(f"Error saving channel version '{filename}': {e}")
+            raise
+    
+    def delete_channel_version(self, filename: str) -> None:
+        """Delete channel version metadata from database"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM channel_versions WHERE filename = ?", (filename,))
+            conn.commit()
+            self.logger.info(f"Deleted channel version metadata: {filename}")
+        except Exception as e:
+            self.logger.error(f"Error deleting channel version '{filename}': {e}")
             raise
     
     # ========== JOB HISTORY ==========

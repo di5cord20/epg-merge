@@ -36,7 +36,7 @@ def init_channels_routes(channel_service, db):
 
     @router.post("/api/channels/select")
     async def select_channels(data: dict):
-        """Save selected channels
+        """Save selected channels (legacy endpoint)
         
         Args:
             data: Dictionary with 'channels' list
@@ -57,6 +57,31 @@ def init_channels_routes(channel_service, db):
             logger.error(f"Error saving channels: {e}")
             raise HTTPException(status_code=500, detail="Failed to save channels")
 
+    @router.post("/api/channels/save")
+    async def save_channels(data: dict):
+        """Save selected channels with versioning and archiving
+        
+        Args:
+            data: Dictionary with:
+                - 'channels': List of channel IDs
+                - 'sources_count': Number of sources used (optional)
+        
+        Returns:
+            Status with save details
+        """
+        try:
+            channels = data.get("channels", [])
+            sources_count = data.get("sources_count", 0)
+            
+            if not isinstance(channels, list):
+                raise ValueError("channels must be a list")
+            
+            result = channel_service.save_selected_channels(channels, sources_count)
+            return result
+        except Exception as e:
+            logger.error(f"Error saving channels: {e}")
+            raise HTTPException(status_code=500, detail="Failed to save channels")
+
     @router.get("/api/channels/selected")
     async def get_selected_channels():
         """Get previously selected channels"""
@@ -66,6 +91,21 @@ def init_channels_routes(channel_service, db):
         except Exception as e:
             logger.error(f"Error getting selected channels: {e}")
             raise HTTPException(status_code=500, detail="Failed to get selected channels")
+
+    @router.get("/api/channels/versions")
+    async def get_channel_versions():
+        """Get all channel versions (current + archived)
+        
+        Returns:
+            List of channel versions with metadata
+        """
+        try:
+            result = channel_service.get_channel_versions()
+            logger.info(f"Retrieved {len(result['versions'])} channel versions")
+            return result
+        except Exception as e:
+            logger.error(f"Error getting channel versions: {e}")
+            raise HTTPException(status_code=500, detail="Failed to get channel versions")
 
     @router.post("/api/channels/export")
     async def export_channels():

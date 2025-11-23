@@ -10,7 +10,7 @@ import { SettingsQuality } from './settings/SettingsQuality';
 import { SettingsNotifications } from './settings/SettingsNotifications';
 
 /**
- * SettingsPage - v0.4.2 (Phase 2 Refactored)
+ * SettingsPage - v0.4.8 (Enhanced)
  * Main orchestrator for all settings sub-components
  * Manages state, validation, persistence, and API communication
  */
@@ -65,6 +65,20 @@ export const SettingsPage = () => {
     return null;
   };
 
+  const validateChannelsFilename = (filename) => {
+    if (!filename) return "Filename is required";
+    if (!filename.match(/\.json$/i)) {
+      return "Must end with .json";
+    }
+    return null;
+  };
+
+  const validateDirectoryPath = (path) => {
+    if (!path) return "Path is required";
+    if (!path.startsWith('/')) return "Path must start with /";
+    return null;
+  };
+
   const validateDiscordWebhook = (url) => {
     if (!url) return null; // Optional field
     if (!url.match(/^https:\/\/discordapp\.com\/api\/webhooks\/\d+\/.+$/) &&
@@ -80,6 +94,18 @@ export const SettingsPage = () => {
     const filenameError = validateMergedFilename(settings.output_filename);
     if (filenameError) errors.output_filename = filenameError;
     
+    const channelsError = validateChannelsFilename(settings.channels_filename);
+    if (channelsError) errors.channels_filename = channelsError;
+    
+    const currentDirError = validateDirectoryPath(settings.current_dir);
+    if (currentDirError) errors.current_dir = currentDirError;
+    
+    const archiveDirError = validateDirectoryPath(settings.archive_dir);
+    if (archiveDirError) errors.archive_dir = archiveDirError;
+    
+    const channelsDirError = validateDirectoryPath(settings.channels_dir);
+    if (channelsDirError) errors.channels_dir = channelsDirError;
+
     const webhookError = validateDiscordWebhook(settings.discord_webhook);
     if (webhookError) errors.discord_webhook = webhookError;
     
@@ -111,9 +137,14 @@ export const SettingsPage = () => {
 
         setSettings({
           output_filename: data.output_filename || settings.output_filename,
+          channels_filename: data.channels_filename || settings.channels_filename,
+          current_dir: data.current_dir || settings.current_dir,
+          archive_dir: data.archive_dir || settings.archive_dir,
           merge_schedule: data.merge_schedule || settings.merge_schedule,
           merge_time: data.merge_time || settings.merge_time,
           merge_days: mergeDays,
+          merge_timeframe: data.merge_timeframe || settings.merge_timeframe,
+          merge_channels_version: data.merge_channels_version || settings.merge_channels_version,
           download_timeout: parseInt(data.download_timeout) || settings.download_timeout,
           merge_timeout: parseInt(data.merge_timeout) || settings.merge_timeout,
           channel_drop_threshold: data.channel_drop_threshold !== undefined ? data.channel_drop_threshold : settings.channel_drop_threshold,
@@ -138,9 +169,15 @@ export const SettingsPage = () => {
         method: 'POST',
         body: JSON.stringify({
           output_filename: settings.output_filename,
+          channels_filename: settings.channels_filename,
+          current_dir: settings.current_dir,
+          archive_dir: settings.archive_dir,
+          channels_dir: settings.channels_dir,
           merge_schedule: settings.merge_schedule,
           merge_time: settings.merge_time,
           merge_days: JSON.stringify(settings.merge_days),
+          merge_timeframe: settings.merge_timeframe,
+          merge_channels_version: settings.merge_channels_version,
           download_timeout: settings.download_timeout.toString(),
           merge_timeout: settings.merge_timeout.toString(),
           channel_drop_threshold: settings.channel_drop_threshold,
@@ -259,13 +296,13 @@ export const SettingsPage = () => {
       <div style={sidebarStyle}>
         <div style={{ padding: '0 20px', marginBottom: '20px' }}>
           <h3 style={{ fontSize: '14px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>
-            ⚙️ Settings
+            âš™ï¸ Settings
           </h3>
         </div>
 
         {[
           { id: 'summary', label: 'Summary', icon: '📋' },
-          { id: 'output', label: 'Output File', icon: '📦' },
+          { id: 'output', label: 'Output & Paths', icon: '📂' },
           { id: 'schedule', label: 'Schedule', icon: '📅' },
           { id: 'timeouts', label: 'Timeouts', icon: '⏱️' },
           { id: 'quality', label: 'Quality', icon: '📊' },
@@ -332,7 +369,7 @@ export const SettingsPage = () => {
           <SettingsSummary settings={settings} />
         </div>
 
-        {/* OUTPUT FILE PANEL */}
+        {/* OUTPUT FILE & PATHS PANEL */}
         <div ref={panelRefs.output}>
           <SettingsOutput
             settings={settings}
@@ -415,9 +452,15 @@ export const SettingsPage = () => {
 function getDefaultSettings() {
   return {
     output_filename: 'merged.xml.gz',
+    channels_filename: 'channels.json',
+    current_dir: '/data/current',
+    archive_dir: '/data/archives',
+    channels_dir: '/data/channels',
     merge_schedule: 'daily',
     merge_time: '00:00',
     merge_days: ['0', '1', '2', '3', '4', '5', '6'],
+    merge_timeframe: '3',
+    merge_channels_version: 'current',
     download_timeout: 120,
     merge_timeout: 300,
     channel_drop_threshold: '10',

@@ -1,34 +1,186 @@
 # EPG Merge Application
 
-> **TV feed merger** combining multiple XMLTV EPG files with channel filtering, archiving, and scheduling.
-
-**Version:** 0.4.7 | **Status:** Production Ready | **Tests:** 56+/56+ passing
+> **Combine multiple XMLTV EPG files** into a single merged guide with automatic scheduling, channel filtering, and archive management. Perfect for users that want to select specific channels and/or consolidate multiple program guides consolidated into one.
 
 ---
 
-## EPG Merge - Docker Deployment
+## 🚀 Quick Start with Docker
 
-## 🚀 Quick Start
+Get up and running in 3 commands:
+
 ```bash
 cd /opt
 git clone https://github.com/di5cord20/epg-merge.git epg-merge-app
 cd epg-merge-app
+
+# Create data directories
 mkdir -p ./data/{tmp,current,archives} ./config
+
+# Start the application
 docker compose up -d
+
+# Wait for startup
+sleep 30
 ```
 
-Open http://your-server-ip
+**Open your browser:** http://your-server-ip
 
-👉 **[Full Docker Guide](docs/DOCKER_DEPLOYMENT.md)** | **[Quick Start Card](docs/DOCKER_QUICKSTART.md)**
+---
 
-## Features
+## 📖 How to Use EPG Merge
 
-- ✅ Automatic scheduled merges (runs in background)
-- ✅ Memory tracking for performance monitoring
-- ✅ Discord notifications on completion
-- ✅ Job history & archive management
-- ✅ Web-based configuration (no command line needed)
-- ✅ Production-ready Docker deployment
+### Step 1: Select and Save Sources
+
+1. Open the app and go to **Sources** page
+2. Choose your preferences:
+   - **Timeframe:** 3, 7, or 14 days of EPG data
+   - **Feed Type:** IPTV or Gracenote
+3. Click **Refresh Files** to fetch available sources
+4. Select which source files you want to include (use search to filter)
+5. Click **Save Sources**
+
+✅ **Sources are now saved and ready**
+
+---
+
+### Step 2: Select and Save Channels
+
+1. Go to **Channels** page
+2. Click **Load from Sources** to extract available channels
+3. Browse the list and select only the channels you want to keep (use search to filter)
+4. Click **Save Channels**
+5. Click **Export Channels** to save a json of your selection.
+6. Click **Import Channels** to import your previously save backup.
+
+✅ **Channels are now configured**
+
+---
+
+### Step 3: Test Manual Merge
+
+1. Go to **Merge** page
+2. Click **Start Merge** to process your first EPG
+3. Watch the progress log in real-time
+4. Choose what to do with the result:
+   - **Download:** Save the file directly
+   - **Save as Current:** Stores as your live EPG file
+
+✅ **Merge is complete!**
+
+---
+
+### Step 4: View Your Files
+
+1. Go to **Archives** page
+2. See your current live file and all previous versions
+3. Download any version or delete old backups
+
+✅ **Your EPG files are safely archived**
+
+---
+
+### Step 5: Set Up Automatic Scheduling
+
+1. Go to **Settings** page
+2. Configure:
+   - **Merge Schedule:** Daily or Weekly
+   - **Merge Time:** What time to run (uses your timezone)
+   - **Merge Days:** If weekly, which days to run
+   - *Optional:* **Discord Webhook** for completion notifications
+
+✅ **Merges now run automatically!**
+
+---
+
+### Step 6: Monitor Progress
+
+1. Go to **Dashboard** to see:
+   - Current job status (running or idle)
+   - Next scheduled merge time
+   - Recent job history
+   - Memory usage and execution times
+   - Latest job details
+
+✅ **Stay informed about your merges**
+
+---
+
+## 📍 Application Pages
+
+| Page | Purpose |
+|------|---------|
+| **Sources** | Select which EPG files to merge (3/7/14 days, IPTV/Gracenote) |
+| **Channels** | Filter to include only specific TV channels |
+| **Merge** | Manually run a merge, download, or save as current live file |
+| **Archives** | View all your EPG files (current + backups) |
+| **Dashboard** | Monitor scheduled job status and execution history |
+| **Settings** | Configure automation, scheduling, timeouts, and Discord notifications |
+
+---
+
+## ⚙️ Settings Explained
+
+| Setting | Purpose | Default |
+|---------|---------|---------|
+| **Output Filename** | Name of your merged EPG file | `merged.xml.gz` |
+| **Merge Schedule** | Run daily or specific days weekly | Daily |
+| **Merge Time** | What time to run (HH:MM format, UTC) | 00:00 |
+| **Merge Days** | Which days to run (if weekly) | All days |
+| **Download Timeout** | Seconds to wait when downloading files | 120 |
+| **Merge Timeout** | Seconds to wait for merge to complete | 300 |
+| **Channel Drop Threshold** | Alert if channels drop below this count | (disabled) |
+| **Archive Retention** | Automatically delete archives that don't have any scheduled programs remaining | enabled |
+| **Discord Webhook** | Send notifications to Discord when merge completes | (optional) |
+
+---
+
+## 🎯 Common Workflows
+
+### I want to merge daily at 2 AM
+1. Go to **Settings**
+2. Set **Merge Schedule:** Daily
+3. Set **Merge Time:** 02:00
+4. Click **Save**
+
+✅ Merges automatically run daily at 2 AM your time
+
+---
+
+### I want to merge only on weekends
+1. Go to **Settings**
+2. Set **Merge Schedule:** Weekly
+3. Set **Merge Time:** 12:00
+4. Set **Merge Days:** Saturday, Sunday
+5. Click **Save**
+
+✅ Merges automatically run Saturdays and Sundays at noon
+
+---
+
+### I want Discord notifications
+1. Create a Discord webhook (Server Settings → Integrations → Webhooks → New)
+2. Copy the webhook URL
+3. Go to **Settings → Discord Webhook**
+4. Paste the webhook URL
+5. Click **Save**
+
+✅ You'll receive a Discord message after each merge with:
+- Filename
+- Channels included
+- Programs included
+- File size
+- Peak memory usage
+- Duration
+
+---
+
+## 🌐 Accessing the Application
+
+| Component | URL |
+|-----------|-----|
+| **Web Interface** | http://your-server-ip |
+| **API Health** | http://your-server-ip:9193/api/health |
+| **API Docs** | http://your-server-ip:9193/docs |
 
 ---
 
@@ -39,234 +191,118 @@ Open http://your-server-ip
 | **Backend** | FastAPI | 0.115.5 |
 | **Frontend** | React | 18.2 |
 | **Database** | SQLite | 3.x |
-| **Language** | Python | 3.11+ |
 | **Container** | Docker | Latest |
+| **Memory Tracking** | psutil | 5.8.0+ |
 
 ---
 
-## Core Workflows
+## 📚 Documentation
 
-### 1. Sources → Channels → Merge
-- Select timeframe (3/7/14 days) and feed type (IPTV/Gracenote)
-- Choose specific sources or "Select All (FullGuide)"
-- Load channels from sources, filter by ID
-- Execute merge with real-time progress logging
-- Download or "Save as Current" (archives previous version)
+For detailed information, see:
 
-### 2. Archive Management
-- Current live file: `merged.xml.gz`
-- Previous versions: `merged.xml.gz.YYYYMMDD_HHMMSS`
-- Automatic metadata: channels, programs, days included, creation date
-- Manual or automatic cleanup based on retention policy
-
-### 3. Settings & Configuration
-- Output filename and merge schedule (daily/weekly)
-- Merge time and specific days selection
-- Download/merge timeouts with validation
-- Channel drop threshold alerts
-- Archive retention cleanup (auto-delete expired)
-- Discord webhook notifications
+- 📘 **[Docker Deployment Guide](docs/DOCKER_DEPLOYMENT.md)** - Complete setup and troubleshooting
+- ⚡ **[Quick Start Card](docs/DOCKER_QUICKSTART.md)** - One-page reference
+- 🏗️ **[Architecture](docs/ARCHITECTURE.md)** - System design
+- 📦 **[API Specification](docs/API-SPEC.md)** - REST endpoints
+- 💾 **[Local Development](docs/DEVELOPMENT.md)** - For developers
 
 ---
 
-## Documentation
+## 🙏 Credits & Inspiration
 
-- 📘 [Quick Reference](docs/QUICK_REFERENCE.md) - Common commands and workflows
-- 🏗️ [Architecture](docs/ARCHITECTURE.md) - System design overview
-- 💾 [Local Development](docs/development/LOCAL_DEV.md) - Setup and debugging
-- 🚀 [Deployment](docs/deployment/DEPLOYMENT.md) - Production deployment guide
-- 📦 [API Specification](docs/API-SPEC.md) - REST endpoint contracts
+EPG Merge builds on the excellent work of:
 
----
-
-## Project Status
-
-- **Current Version:** 0.4.5 (Centralized Constants & Folder Validation)
-- **Last Update:** November 1, 2025
-- **Frontend Tests:** 56+ passing (utility + integration)
-- **Backend Tests:** Full API contract validation
-- **Code Coverage:** 85%+
-
-### Recent Changes (v0.4.5)
-- Created `backend/constants.py` - Single source of truth for folder mappings
-- Added `get_folder_name()` - Validates timeframe/feed_type combinations
-- Added `get_update_frequency()` - Human-readable update info
-- Updated `source_service.py` - Uses constants instead of local FOLDER_MAP
-- Updated `merge_service.py` - Uses constants instead of local folder_map
-- Eliminated 100% of folder mapping duplication across services
-- Improved error handling with explicit validation
-
-### Previous Notable Changes (v0.4.4)
-- Configurable output filename in Settings
-- New directory structure: `/data/tmp/`, `/data/current/`, `/data/archives/`
-- Copy-not-move workflow for better UX
-- Fresh settings fetching before operations
-- 56+ integration tests
+### 📺 Data Source
+- **[jesmann.com](https://share.jesmann.com/)** - Provides the XMLTV EPG data feeds that power EPG Merge. Without this data source, this project wouldn't exist. Thank you!
 
 ---
 
-## Installation
+## 🐛 Troubleshooting
 
-### Production (Ubuntu/Debian)
+### Can't access the web interface?
 ```bash
-sudo bash install/install.sh
-# Select: Fresh Install or Update/Upgrade
-# Configurable directories, automatic service setup
+# Check if services are running
+docker compose ps
+
+# View logs
+docker compose logs backend
+
+# Test API directly
+curl http://your-ip:9193/api/health
 ```
 
-### Local Development
+### Merge not starting?
+1. Did you save sources? (Go to **Sources** page)
+2. Did you save channels? (Go to **Channels** page)
+3. Try a manual merge first (Go to **Merge** page)
+
+### Scheduled merge not running?
+1. Check **Dashboard** for next scheduled time
+2. Verify settings in **Settings** page
+3. View scheduler logs: `docker compose logs backend | grep scheduler`
+
+For more help, see [DOCKER_DEPLOYMENT.md](docs/DOCKER_DEPLOYMENT.md#troubleshooting)
+
+---
+
+## 📋 Common Commands
+
 ```bash
-# Backend
-cd backend && python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python -m uvicorn main:app --reload
+# Check status
+docker compose ps
 
-# Frontend
-cd frontend && npm install --legacy-peer-deps
-npm start
+# View logs
+docker compose logs -f backend
+
+# Restart
+docker compose restart
+
+# Stop
+docker compose down
+
+# Update
+git pull && docker compose build --no-cache && docker compose up -d
 ```
 
 ---
 
-## Common Commands
+## 📁 File Structure
 
-### Service Management
-```bash
-systemctl status epg-merge           # Check status
-systemctl restart epg-merge          # Restart
-journalctl -u epg-merge -f           # Live logs
 ```
-
-### Build & Update
-```bash
-sudo bash /opt/epg-merge-app/scripts/build.sh    # Rebuild frontend
-sudo bash /opt/epg-merge-app/scripts/update.sh   # Full update
-sudo bash /opt/epg-merge-app/scripts/backup.sh   # Create backup
-```
-
-### Database
-```bash
-sqlite3 /config/app.db
-SELECT COUNT(*) FROM channels_selected;          # Check channels
-SELECT * FROM settings ORDER BY key;             # View settings
-.tables                                          # List all tables
-```
-
-### Test Configuration
-```bash
-# Test 14-day IPTV (folder should be 'iptv')
-python3 -c "from backend.constants import get_folder_name; print(get_folder_name('14', 'iptv'))"
-
-# Test 14-day Gracenote (folder should be empty string for root)
-python3 -c "from backend.constants import get_folder_name; print(get_folder_name('14', 'gracenote'))"
+epg-merge-app/
+├── data/                    # Your EPG files (BACKUP THIS!)
+│   ├── tmp/                # Temporary merges
+│   ├── current/            # Your live EPG file
+│   └── archives/           # Previous versions
+├── config/                  # Settings database (BACKUP THIS!)
+│   └── app.db
+├── frontend/               # React web interface
+├── backend/                # FastAPI API server
+├── docker-compose.yml      # Docker configuration
+└── docs/                   # Documentation
 ```
 
 ---
 
-## API Overview
+## ⚠️ Important Notes
 
-All endpoints available at `http://localhost:9193/api/`
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/health` | GET | Health check + version |
-| `/sources/list` | GET | Available XML files |
-| `/channels/from-sources` | GET | Extract channel IDs |
-| `/merge/execute` | POST | Run merge operation |
-| `/merge/save` | POST | Save as current + archive |
-| `/archives/list` | GET | All archives + current |
-| `/archives/download/{filename}` | GET | Download file |
-| `/settings/get` | GET | All settings |
-| `/settings/set` | POST | Save settings |
-| `/jobs/status` | GET | Scheduled job status |
-| `/jobs/history` | GET | Job execution history |
+- **Backup regularly:** Keep copies of `data/` and `config/` directories
+- **Disk space:** Monitor `/data/` folder size (especially if keeping many archives)
+- **Firewall:** Ensure port 80 (web) and 9193 (API) are accessible
 
 ---
 
-## File Structure
+## 🔗 Links
 
-```
-epg-merge/
-├── backend/
-│   ├── main.py              # FastAPI routes (370 lines)
-│   ├── config.py            # Configuration management
-│   ├── database.py          # SQLite wrapper (240 lines)
-│   ├── version.py           # Version (single source of truth)
-│   ├── constants.py         # Centralized constants (NEW v0.4.5)
-│   ├── services/            # Business logic
-│   │   ├── merge_service.py
-│   │   ├── channel_service.py
-│   │   ├── source_service.py   # Uses constants.py (v0.4.5)
-│   │   ├── archive_service.py
-│   │   ├── settings_service.py
-│   │   └── job_service.py
-│   └── venv/                # Python virtual environment
-├── frontend/
-│   ├── src/
-│   │   ├── App.js           # Main component
-│   │   ├── App.css          # Dark mode styling (inline)
-│   │   ├── pages/           # 6 page components
-│   │   ├── components/      # 5 reusable components
-│   │   └── hooks/           # 3 custom hooks (useApi, useLocalStorage, useTheme)
-│   └── package.json
-├── install/                 # Installation scripts
-├── scripts/                 # Utility scripts (build, update, backup)
-├── docker-compose.yml       # Docker setup
-├── CHANGELOG.md             # Version history
-├── CONTEXT.md              # AI conversation reference (THIS FILE!)
-└── README.md               # ← You are here
-```
+- **Repository:** https://github.com/di5cord20/epg-merge
+- **EPG Data Source:** https://share.jesmann.com/
 
 ---
 
-## Environment Setup
+## 📄 License
 
-### `.env` Configuration
-```bash
-# Backend
-FLASK_ENV=production
-API_HOST=0.0.0.0
-API_PORT=9193
-DATABASE_URL=sqlite:///./app.db
-
-# Frontend
-REACT_APP_API_BASE=http://localhost:9193
-
-# Optional
-DISCORD_WEBHOOK=https://discord.com/api/webhooks/...
-```
+MIT License - See **[LICENSE](LICENSE)** file for details
 
 ---
 
-## Known Limitations
-
-1. **Scheduled merges** - Cron infrastructure ready, execution not yet active
-2. **Discord notifications** - Webhook field exists, notifications not yet sent
-3. **Real-time logs** - Currently shown after completion, not live streaming
-4. **Channel validation** - Uses exact ID matching, no fuzzy logic
-
----
-
-## Roadmap
-
-### Phase 5 (Future)
-- [ ] Active cron scheduling with execution
-- [ ] Real-time log streaming (WebSocket/SSE)
-- [ ] Discord webhook notifications
-- [ ] Multi-user support with authentication
-- [ ] Kubernetes deployment templates
-
----
-
-## Support & Contribution
-
-- **Issues:** GitHub Issues
-- **Documentation:** See [docs/](docs/) folder
-- **License:** MIT
-
----
-
-**Last Updated:** November 1, 2025  
-**Maintainer:** di5cord20  
-**Repository:** https://github.com/di5cord20/epg-merge
+**Version:** 0.4.7 | **Last Updated:** November 2, 2025

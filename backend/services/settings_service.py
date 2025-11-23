@@ -1,6 +1,6 @@
 """
-EPG Merge - Settings Service (Refactored v0.4.1)
-Simplified settings management with defaults
+EPG Merge - Settings Service (v0.4.8 Enhanced)
+Simplified settings management with defaults including paths and channels
 """
 
 from typing import Dict, Any, Optional
@@ -12,16 +12,35 @@ class SettingsService:
     
     # Default settings - single source of truth for defaults
     DEFAULTS = {
+        # Output Files
         "output_filename": "merged.xml.gz",
+        "channels_filename": "channels.json",
+        
+        # Directory Paths
+        "current_dir": "/data/current",
+        "archive_dir": "/data/archives",
+        "channels_dir": "/data/channels",
+        
+        # Merge Schedule
         "merge_schedule": "daily",
         "merge_time": "00:00",
         "merge_days": '["0","1","2","3","4","5","6"]',  # JSON array
+        "merge_timeframe": "3",  # 3, 7, or 14 days for scheduled merges
+        "merge_channels_version": "current",  # which channels.json version to use
+        
+        # Timeouts
         "download_timeout": "120",
         "merge_timeout": "300",
+        
+        # Quality & Retention
         "channel_drop_threshold": "10",
         "archive_retention_days": "30",
         "archive_retention_cleanup_expired": "true",  # Delete if days_left < 0
+        
+        # Notifications
         "discord_webhook": "",
+        
+        # UI Selections (not used by scheduler)
         "selected_timeframe": "3",
         "selected_feed_type": "iptv"
     }
@@ -76,8 +95,20 @@ class SettingsService:
     # Convenience getters for common settings
     
     def get_output_filename(self) -> str:
-        """Get configured output filename"""
+        """Get configured output filename for merged EPG"""
         return self.get("output_filename")
+    
+    def get_channels_filename(self) -> str:
+        """Get configured filename for channels JSON"""
+        return self.get("channels_filename")
+    
+    def get_current_dir(self) -> str:
+        """Get configured current/live directory path"""
+        return self.get("current_dir")
+    
+    def get_archive_dir(self) -> str:
+        """Get configured archive directory path"""
+        return self.get("archive_dir")
     
     def get_merge_schedule(self) -> str:
         """Get merge schedule (daily/weekly)"""
@@ -86,6 +117,14 @@ class SettingsService:
     def get_merge_time(self) -> str:
         """Get merge time (HH:MM)"""
         return self.get("merge_time")
+    
+    def get_merge_timeframe(self) -> str:
+        """Get timeframe for scheduled merges (3, 7, or 14 days)"""
+        return self.get("merge_timeframe")
+    
+    def get_merge_channels_version(self) -> str:
+        """Get which channels version to use for scheduled merges"""
+        return self.get("merge_channels_version")
     
     def get_download_timeout(self) -> int:
         """Get download timeout in seconds"""
@@ -109,9 +148,9 @@ class SettingsService:
         return self.get("discord_webhook", "")
     
     def get_selected_timeframe(self) -> str:
-        """Get selected timeframe (3, 7, or 14 days)"""
+        """Get selected timeframe in UI (3, 7, or 14 days)"""
         return self.get("selected_timeframe", "3")
     
     def get_selected_feed_type(self) -> str:
-        """Get selected feed type (iptv or gracenote)"""
+        """Get selected feed type in UI (iptv or gracenote)"""
         return self.get("selected_feed_type", "iptv")

@@ -4,7 +4,7 @@ Health and status check endpoints
 
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
-from version import get_version
+from backend.version import get_version
 from utils.logger import setup_logging
 
 logger = setup_logging(__name__)

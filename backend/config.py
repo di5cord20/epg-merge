@@ -27,14 +27,15 @@ class Config:
         self.tmp_dir = Path(os.getenv("TMP_DIR", self.data_dir / "tmp"))
         self.current_dir = Path(os.getenv("CURRENT_DIR", self.data_dir / "current"))
         self.archive_dir = Path(os.getenv("ARCHIVE_DIR", self.data_dir / "archives"))
+        self.channels_dir = Path(os.getenv("CHANNELS_DIR", self.data_dir / "channels"))
         
-        # Config and cache
+        # Config and cache - MOVED to /data/epg_cache
         if self.environment == "development":
             default_config_dir = str(Path(__file__).parent.parent / "config")
         else:
             default_config_dir = "/config"
         self.config_dir = Path(os.getenv("CONFIG_DIR", default_config_dir))
-        self.cache_dir = Path(os.getenv("CACHE_DIR", self.config_dir / "epg_cache"))
+        self.cache_dir = Path(os.getenv("CACHE_DIR", self.data_dir / "epg_cache"))
         
         # Database
         self.db_path = Path(os.getenv("DB_PATH", self.config_dir / "app.db"))
@@ -56,6 +57,7 @@ class Config:
             self.tmp_dir,
             self.current_dir,
             self.archive_dir,
+            self.channels_dir,
             self.config_dir,
             self.cache_dir
         ]:
@@ -69,6 +71,7 @@ class Config:
             "tmp_dir": str(self.tmp_dir),
             "current_dir": str(self.current_dir),
             "archive_dir": str(self.archive_dir),
+            "channels_dir": str(self.channels_dir),
             "config_dir": str(self.config_dir),
             "cache_dir": str(self.cache_dir),
             "db_path": str(self.db_path),

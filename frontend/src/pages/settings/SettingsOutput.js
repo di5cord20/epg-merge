@@ -2,8 +2,8 @@ import React from 'react';
 import { Save } from 'lucide-react';
 
 /**
- * SettingsOutput Component - v0.4.2
- * Manages output filename configuration
+ * SettingsOutput Component - v0.4.8
+ * Manages output filenames and directory paths
  */
 export const SettingsOutput = ({ settings, onSettingChange, validationErrors, savedPanel, onSave }) => {
   const panelContainerStyle = {
@@ -78,7 +78,7 @@ export const SettingsOutput = ({ settings, onSettingChange, validationErrors, sa
   return (
     <div style={panelContainerStyle}>
       <div style={panelHeaderStyle}>
-        <h2 style={{ margin: 0 }}>📦 Output File</h2>
+        <h2 style={{ margin: 0 }}>📂 Output & Paths</h2>
         <button onClick={() => onSave('output')} style={buttonStyle}>
           <Save size={16} /> Save
         </button>
@@ -98,21 +98,93 @@ export const SettingsOutput = ({ settings, onSettingChange, validationErrors, sa
         </div>
       )}
 
+      {/* Merged EPG File */}
       <div style={sectionStyle}>
         <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
-          Merged File Name
+          📦 Merged EPG File Name
         </label>
         <input
           type="text"
           style={validationErrors.output_filename ? errorInputStyle : inputFieldStyle}
           value={settings.output_filename}
           onChange={(e) => onSettingChange('output_filename', e.target.value)}
-          placeholder="merged.xml.gz"
         />
         <div style={validationErrors.output_filename ? errorTextStyle : helperTextStyle}>
           {validationErrors.output_filename 
             ? `❌ ${validationErrors.output_filename}` 
             : 'Must end with .xml or .xml.gz'}
+        </div>
+      </div>
+
+      {/* Channels JSON File */}
+      <div style={sectionStyle}>
+        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
+          📦 Channels JSON File Name
+        </label>
+        <input
+          type="text"
+          style={validationErrors.channels_filename ? errorInputStyle : inputFieldStyle}
+          value={settings.channels_filename}
+          onChange={(e) => onSettingChange('channels_filename', e.target.value)}
+        />
+        <div style={validationErrors.channels_filename ? errorTextStyle : helperTextStyle}>
+          {validationErrors.channels_filename 
+            ? `❌ ${validationErrors.channels_filename}` 
+            : 'Must end with .json'}
+        </div>
+      </div>
+
+      {/* Current Directory Path */}
+      <div style={sectionStyle}>
+        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
+          📂 Current (Live) Directory
+        </label>
+        <input
+          type="text"
+          style={validationErrors.current_dir ? errorInputStyle : inputFieldStyle}
+          value={settings.current_dir}
+          onChange={(e) => onSettingChange('current_dir', e.target.value)}
+        />
+        <div style={validationErrors.current_dir ? errorTextStyle : helperTextStyle}>
+          {validationErrors.current_dir 
+            ? `❌ ${validationErrors.current_dir}` 
+            : 'Where the live merged file is stored'}
+        </div>
+      </div>
+
+      {/* Archive Directory Path */}
+      <div style={sectionStyle}>
+        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
+          📁 Archive Directory
+        </label>
+        <input
+          type="text"
+          style={validationErrors.archive_dir ? errorInputStyle : inputFieldStyle}
+          value={settings.archive_dir}
+          onChange={(e) => onSettingChange('archive_dir', e.target.value)}
+        />
+        <div style={validationErrors.archive_dir ? errorTextStyle : helperTextStyle}>
+          {validationErrors.archive_dir 
+            ? `❌ ${validationErrors.archive_dir}` 
+            : 'Where previous versions are stored with timestamps'}
+        </div>
+      </div>
+
+      {/* Channels Directory Path */}
+      <div style={sectionStyle}>
+        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
+          📁 Channels Directory
+        </label>
+        <input
+          type="text"
+          style={validationErrors.channels_dir ? errorInputStyle : inputFieldStyle}
+          value={settings.channels_dir}
+          onChange={(e) => onSettingChange('channels_dir', e.target.value)}
+        />
+        <div style={validationErrors.channels_dir ? errorTextStyle : helperTextStyle}>
+          {validationErrors.channels_dir 
+            ? `❌ ${validationErrors.channels_dir}` 
+            : 'Where saved channel versions are stored'}
         </div>
       </div>
     </div>

@@ -2,21 +2,25 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, FileText } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
 import { ArchivesTable } from './archives/ArchivesTable';
+import { ArchivesChannels } from './archives/ArchivesChannels';
 import { ArchivesLegend } from './archives/ArchivesLegend';
 
 /**
- * ArchivesPage - v0.4.4 (Updated for new directory structure)
+ * ArchivesPage - v0.4.8 (Updated with Channels Versions Panel)
  * Main orchestrator for archives management
- * Handles data fetching, sorting, and delegating to sub-components
+ * Displays both merged EPG files and channel versions using separate table components
  * Works with /data/current/ and /data/archives/ structure
  */
 export const ArchivesPage = () => {
   const [archives, setArchives] = useState([]);
+  const [channelVersions, setChannelVersions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(null);
-  const [sortBy, setSortBy] = useState('type'); // 'type' sorts current first, then by date
+  const [sortBy, setSortBy] = useState('type');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [channelSortBy, setChannelSortBy] = useState('date');
+  const [channelSortOrder, setChannelSortOrder] = useState('desc');
   const { call } = useApi();
 
   // =========================================================================
@@ -52,14 +56,18 @@ export const ArchivesPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await call('/api/archives/list');
+      const [archivesData, channelsData] = await Promise.all([
+        call('/api/archives/list'),
+        call('/api/channels/versions')
+      ]);
       
-      const archivesWithDaysLeft = (data.archives || []).map(archive => ({
+      const archivesWithDaysLeft = (archivesData.archives || []).map(archive => ({
         ...archive,
         days_left: calculateDaysLeft(archive.created_at, archive.days_included)
       }));
       
       setArchives(archivesWithDaysLeft);
+      setChannelVersions(channelsData.versions || []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -75,13 +83,11 @@ export const ArchivesPage = () => {
   // ACTIONS
   // =========================================================================
 
-  const handleDownload = async (filename) => {
+  const handleDownload = async (filename, type = 'archive') => {
     try {
       const apiBase = process.env.REACT_APP_API_BASE || '';
-      
-      // Archives page always downloads the exact filename as stored on disk
-      // is_current files are in /data/current/, archived files are in /data/archives/
-      const url = `${apiBase}/api/archives/download/${filename}`;
+      const endpoint = type === 'channel' ? 'download-channel' : 'download';
+      const url = `${apiBase}/api/archives/${endpoint}/${filename}`;
       
       const response = await fetch(url);
       if (!response.ok) throw new Error('Download failed');
@@ -100,16 +106,22 @@ export const ArchivesPage = () => {
     }
   };
 
-  const handleDelete = async (filename) => {
-    if (!window.confirm(`Delete archive: ${filename}?`)) return;
+  const handleDelete = async (filename, type = 'archive') => {
+    if (!window.confirm(`Delete: ${filename}?`)) return;
     
     setDeleting(filename);
     try {
-      await call(`/api/archives/delete/${filename}`, {
+      const apiBase = process.env.REACT_APP_API_BASE || '';
+      const endpoint = type === 'channel' ? 'delete-channel' : 'delete';
+      await call(`/api/archives/${endpoint}/${filename}`, {
         method: 'DELETE'
       });
       
-      setArchives(archives.filter(a => a.filename !== filename));
+      if (type === 'archive') {
+        setArchives(archives.filter(a => a.filename !== filename));
+      } else {
+        setChannelVersions(channelVersions.filter(v => v.filename !== filename));
+      }
     } catch (err) {
       setError(`Delete error: ${err.message}`);
     } finally {
@@ -118,7 +130,7 @@ export const ArchivesPage = () => {
   };
 
   // =========================================================================
-  // SORTING
+  // SORTING - MERGED FILES
   // =========================================================================
 
   const sortedArchives = [...archives].sort((a, b) => {
@@ -126,8 +138,6 @@ export const ArchivesPage = () => {
     
     switch (sortBy) {
       case 'type':
-        // Sort by: current files first (is_current=true), then archives
-        // Within each group, sort by date descending
         if (a.is_current === b.is_current) {
           compareValue = new Date(b.created_at) - new Date(a.created_at);
         } else {
@@ -174,6 +184,52 @@ export const ArchivesPage = () => {
   };
 
   // =========================================================================
+  // SORTING - CHANNEL VERSIONS
+  // =========================================================================
+
+  const sortedChannels = [...channelVersions].sort((a, b) => {
+    let compareValue = 0;
+    
+    switch (channelSortBy) {
+      case 'type':
+        if (a.is_current === b.is_current) {
+          compareValue = new Date(b.created_at) - new Date(a.created_at);
+        } else {
+          compareValue = a.is_current ? -1 : 1;
+        }
+        break;
+      case 'filename':
+        compareValue = a.filename.localeCompare(b.filename);
+        break;
+      case 'date':
+        compareValue = new Date(b.created_at) - new Date(a.created_at);
+        break;
+      case 'sources':
+        compareValue = (b.sources_count || 0) - (a.sources_count || 0);
+        break;
+      case 'channels':
+        compareValue = (b.channels_count || 0) - (a.channels_count || 0);
+        break;
+      case 'size':
+        compareValue = (b.size_bytes || 0) - (a.size_bytes || 0);
+        break;
+      default:
+        compareValue = 0;
+    }
+    
+    return channelSortOrder === 'asc' ? -compareValue : compareValue;
+  });
+
+  const handleChannelSort = (field) => {
+    if (channelSortBy === field) {
+      setChannelSortOrder(channelSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setChannelSortBy(field);
+      setChannelSortOrder('desc');
+    }
+  };
+
+  // =========================================================================
   // STYLES
   // =========================================================================
 
@@ -215,8 +271,8 @@ export const ArchivesPage = () => {
     <div className="page-container">
       <h2>📦 Archives</h2>
 
+      {/* ===== MERGED EPG FILES SECTION ===== */}
       <div style={sectionStyle}>
-        {/* Header with Refresh Button */}
         <div style={headerStyle}>
           <div>
             <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
@@ -233,7 +289,6 @@ export const ArchivesPage = () => {
           </button>
         </div>
 
-        {/* Error Message */}
         {error && (
           <div style={{
             marginBottom: '15px',
@@ -248,7 +303,6 @@ export const ArchivesPage = () => {
           </div>
         )}
 
-        {/* Loading State */}
         {loading && (
           <div style={{ textAlign: 'center', padding: '40px 20px' }}>
             <RefreshCw size={32} style={{ color: '#3b82f6', margin: '0 auto 15px', animation: 'spin 1s linear infinite' }} />
@@ -256,7 +310,6 @@ export const ArchivesPage = () => {
           </div>
         )}
 
-        {/* Empty State */}
         {!loading && archives.length === 0 && (
           <div style={{
             textAlign: 'center',
@@ -271,7 +324,6 @@ export const ArchivesPage = () => {
           </div>
         )}
 
-        {/* Archives Table */}
         {!loading && archives.length > 0 && (
           <ArchivesTable
             archives={sortedArchives}
@@ -285,7 +337,43 @@ export const ArchivesPage = () => {
         )}
       </div>
 
-      {/* Legend & Guide Section */}
+      {/* ===== CHANNEL VERSIONS SECTION ===== */}
+      {!loading && (
+        <div style={sectionStyle}>
+          <div style={headerStyle}>
+            <div>
+              <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                Saved channel JSON configurations with version history
+              </p>
+            </div>
+          </div>
+
+          {channelVersions.length === 0 ? (
+            <div style={{
+              textAlign: 'center',
+              padding: '30px 20px',
+              background: 'rgba(71, 85, 105, 0.2)',
+              border: '1px solid rgba(100, 116, 139, 0.3)',
+              borderRadius: '8px'
+            }}>
+              <FileText size={32} style={{ color: '#64748b', margin: '0 auto 10px' }} />
+              <p style={{ color: '#94a3b8', fontSize: '14px' }}>No channel versions saved yet</p>
+            </div>
+          ) : (
+            <ArchivesChannels
+              versions={sortedChannels}
+              sortBy={channelSortBy}
+              sortOrder={channelSortOrder}
+              onSort={handleChannelSort}
+              onDownload={(filename) => handleDownload(filename, 'channel')}
+              onDelete={(filename) => handleDelete(filename, 'channel')}
+              deleting={deleting}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ===== LEGEND SECTION ===== */}
       {!loading && archives.length > 0 && (
         <div style={sectionStyle}>
           <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', fontWeight: '600', color: '#cbd5e1' }}>

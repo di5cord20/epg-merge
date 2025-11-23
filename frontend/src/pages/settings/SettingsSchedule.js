@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Save } from 'lucide-react';
+import { useApi } from '../../hooks/useApi';
 
 /**
- * SettingsSchedule Component - v0.4.2
- * Manages merge schedule: daily/weekly, time, and days selection
+ * SettingsSchedule Component - v0.4.8
+ * Manages merge schedule, timeframe, and channels selection
  */
 export const SettingsSchedule = ({ settings, onSettingChange, cronExpression, timezone, savedPanel, onSave }) => {
+  const [channelVersions, setChannelVersions] = useState([]);
+  const { call } = useApi();
+
   const DAYS_OF_WEEK = [
     { value: '0', label: 'Sunday' },
     { value: '1', label: 'Monday' },
@@ -15,6 +19,28 @@ export const SettingsSchedule = ({ settings, onSettingChange, cronExpression, ti
     { value: '5', label: 'Friday' },
     { value: '6', label: 'Saturday' }
   ];
+
+  const TIMEFRAMES = [
+    { value: '3', label: '3 days' },
+    { value: '7', label: '7 days' },
+    { value: '14', label: '14 days' }
+  ];
+
+  // Load available channel versions
+  useEffect(() => {
+    loadChannelVersions();
+  }, []);
+
+  const loadChannelVersions = async () => {
+    try {
+      const data = await call('/api/channels/versions');
+      if (data.versions) {
+        setChannelVersions(data.versions);
+      }
+    } catch (err) {
+      console.error('Error loading channel versions:', err);
+    }
+  };
 
   const panelContainerStyle = {
     padding: '25px',
@@ -57,6 +83,15 @@ export const SettingsSchedule = ({ settings, onSettingChange, cronExpression, ti
     fontFamily: 'inherit',
     marginBottom: '6px',
     boxSizing: 'border-box'
+  };
+
+  const selectFieldStyle = {
+    ...inputFieldStyle,
+    appearance: 'none',
+    paddingRight: '30px',
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23e2e8f0' d='M1 1l5 5 5-5'/%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 8px center'
   };
 
   const helperTextStyle = {
@@ -152,6 +187,55 @@ export const SettingsSchedule = ({ settings, onSettingChange, cronExpression, ti
           <div style={helperTextStyle}>
             When to run automatic merges
           </div>
+        </div>
+      </div>
+
+      {/* EPG Timeframe Selection */}
+      <div style={sectionStyle}>
+        <label style={{ display: 'block', fontWeight: '600', marginBottom: '12px' }}>
+          EPG Timeframe for Scheduled Merge
+        </label>
+        <div style={{ display: 'flex', gap: '15px' }}>
+          {TIMEFRAMES.map(tf => (
+            <label key={tf.value} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="timeframe"
+                value={tf.value}
+                checked={settings.merge_timeframe === tf.value}
+                onChange={(e) => onSettingChange('merge_timeframe', e.target.value)}
+              />
+              {tf.label}
+            </label>
+          ))}
+        </div>
+        <div style={{ ...helperTextStyle, marginTop: '10px' }}>
+          EPG data timeframe to use when scheduled merge runs
+        </div>
+      </div>
+
+      {/* Channels Version Selection */}
+      <div style={sectionStyle}>
+        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
+          Channels JSON Version for Scheduled Merge
+        </label>
+        <select
+          style={selectFieldStyle}
+          value={settings.merge_channels_version}
+          onChange={(e) => onSettingChange('merge_channels_version', e.target.value)}
+        >
+          {channelVersions.length === 0 ? (
+            <option value="">No channel versions saved</option>
+          ) : (
+            channelVersions.map(version => (
+              <option key={version.filename} value={version.filename}>
+                {version.is_current ? `${version.filename} (Current)` : version.filename}
+              </option>
+            ))
+          )}
+        </select>
+        <div style={helperTextStyle}>
+          Which saved channels to filter with during merge
         </div>
       </div>
 

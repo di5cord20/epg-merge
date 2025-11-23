@@ -96,7 +96,7 @@ merge.init_merge_routes(merge_service, archive_service, config)
 app.include_router(merge.router)
 
 # Archives
-archives.init_archives_routes(archive_service, settings_service, db)
+archives.init_archives_routes(archive_service, settings_service, db, channel_service)
 app.include_router(archives.router)
 
 # Settings

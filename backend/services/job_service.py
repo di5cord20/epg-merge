@@ -1,10 +1,11 @@
 """
-EPG Merge - Scheduled Job Service (v0.4.7 Enhanced - FIXED)
+EPG Merge - Scheduled Job Service (v0.4.8 Enhanced)
 Handles automated merge execution with:
 - Cron scheduling
 - Timeout enforcement (hard-kill on exceed)
 - Peak memory tracking
 - Enhanced Discord notifications
+- Uses merge_timeframe and merge_channels_version settings
 """
 
 import asyncio
@@ -98,6 +99,7 @@ class ScheduledJobService:
         # Job state
         self.current_job_task: Optional[asyncio.Task] = None
         self.is_job_running = False
+        self.scheduler_task: Optional[asyncio.Task] = None
 
     def stop_scheduler(self):
         """Stop the scheduler"""
@@ -259,6 +261,12 @@ class ScheduledJobService:
     async def execute_scheduled_merge(self) -> Dict[str, Any]:
         """Execute merge using saved settings with timeout enforcement
         
+        Uses:
+        - merge_timeframe: EPG timeframe (3, 7, or 14 days)
+        - merge_channels_version: Which channels JSON to use
+        - selected_sources: Previously selected sources
+        - merge_timeout: Timeout in seconds
+        
         Returns:
             Dictionary with job results
         """
@@ -266,7 +274,7 @@ class ScheduledJobService:
         start_time = datetime.now()
         start_iso = start_time.isoformat()
         
-        self.logger.info(f"🔄 Starting scheduled merge job: {job_id}")
+        self.logger.info(f"📄 Starting scheduled merge job: {job_id}")
         self.is_job_running = True
         
         # Initialize memory monitor
@@ -284,50 +292,52 @@ class ScheduledJobService:
             # Save initial record as RUNNING
             self.save_job_record(job_id, JobStatus.RUNNING, start_iso)
             
-            # Load settings
+            # Load settings for merge
             self.logger.info(f"Loading merge configuration...")
             selected_sources_str = settings.get('selected_sources', '[]')
-            selected_channels_str = settings.get('selected_channels', '[]')
-            timeframe = settings.get('selected_timeframe', '3')
+            merge_timeframe = settings.get('merge_timeframe', '3')
+            merge_channels_version = settings.get('merge_channels_version', 'current')
             feed_type = settings.get('selected_feed_type', 'iptv')
             retention_days = int(settings.get('archive_retention', 30))
             discord_webhook = settings.get('discord_webhook', '')
             output_filename = settings.get('output_filename', 'merged.xml.gz')
+            channels_filename = settings.get('channels_filename', 'channels.json')
             
             # Parse JSON from settings
             try:
                 selected_sources = json.loads(selected_sources_str) if isinstance(selected_sources_str, str) else selected_sources_str
-                selected_channels = json.loads(selected_channels_str) if isinstance(selected_channels_str, str) else selected_channels_str
             except (json.JSONDecodeError, TypeError) as e:
-                self.logger.error(f"Error parsing JSON from settings: {e}")
-                raise ValueError(f"Invalid settings configuration: {e}")
+                self.logger.error(f"Error parsing sources from settings: {e}")
+                raise ValueError(f"Invalid sources configuration: {e}")
             
-            if not selected_sources or not selected_channels:
-                raise ValueError(f"No sources or channels configured. sources={len(selected_sources)}, channels={len(selected_channels)}")
+            if not selected_sources:
+                raise ValueError(f"No sources configured")
+            
+            # Load channels from the specified version file
+            self.logger.info(f"Loading channels from version: {merge_channels_version}")
+            selected_channels = self._load_channels_from_file(merge_channels_version, channels_filename)
+            
+            if not selected_channels:
+                raise ValueError(f"No channels loaded from {merge_channels_version}")
             
             self.logger.info(f"  Sources: {len(selected_sources)}")
             self.logger.info(f"  Channels: {len(selected_channels)}")
-            self.logger.info(f"  Timeframe: {timeframe} days")
+            self.logger.info(f"  Timeframe: {merge_timeframe} days")
             self.logger.info(f"  Feed Type: {feed_type}")
+            self.logger.info(f"  Channels Version: {merge_channels_version}")
             
             # Execute merge with timeout
             self.logger.info(f"Executing merge with {merge_timeout}s timeout...")
             
             try:
-                # Call execute_merge with timeout enforcement
-                # Note: asyncio.wait_for only works with true async code that yields control
-                # Since merge_service has blocking I/O, we just execute it normally
-                # and monitor for timeout at a higher level
-                self.logger.info(f"🔄 Calling merge_service.execute_merge()...")
-                self.logger.info(f"⏱️ Timeout set to: {merge_timeout}s")
+                self.logger.info(f"📄 Calling merge_service.execute_merge()...")
                 
-                # Start time for monitoring
                 start_time = datetime.now()
                 
                 merge_result = await self.merge_service.execute_merge({
                     'sources': selected_sources,
                     'channels': selected_channels,
-                    'timeframe': timeframe,
+                    'timeframe': merge_timeframe,
                     'feed_type': feed_type
                 })
                 
@@ -335,7 +345,6 @@ class ScheduledJobService:
                 elapsed = (datetime.now() - start_time).total_seconds()
                 if elapsed > merge_timeout:
                     self.logger.warning(f"⚠️ Merge took {elapsed:.1f}s, exceeding timeout of {merge_timeout}s")
-                    # Don't fail if already completed - timeout is best-effort
                 
                 self.logger.info(f"✅ Merge completed in {elapsed:.1f}s")
                 
@@ -378,7 +387,7 @@ class ScheduledJobService:
                 'filename': merge_result['filename'],
                 'channels': merge_result['channels_included'],
                 'programs': merge_result['programs_included'],
-                'days_included': int(timeframe)
+                'days_included': int(merge_timeframe)
             })
             
             # Cleanup old job records
@@ -396,7 +405,7 @@ class ScheduledJobService:
                 'channels': merge_result['channels_included'],
                 'programs': merge_result['programs_included'],
                 'file_size': merge_result['file_size'],
-                'days_included': int(timeframe),
+                'days_included': int(merge_timeframe),
                 'peak_memory_mb': peak_memory,
                 'execution_time': execution_time
             }
@@ -411,7 +420,7 @@ class ScheduledJobService:
                 programs=merge_result['programs_included'],
                 file_size=merge_result['file_size'],
                 peak_memory_mb=peak_memory,
-                days_included=int(timeframe),
+                days_included=int(merge_timeframe),
                 execution_time=execution_time
             )
             
@@ -489,6 +498,41 @@ class ScheduledJobService:
             await memory_monitor.stop()
             self.logger.info(f"Job service cleanup complete")
 
+    def _load_channels_from_file(self, version_name: str, channels_filename: str) -> list:
+        """Load channels from a specific version file
+        
+        Args:
+            version_name: Filename to load (e.g., "channels.json" or "channels.json.20251122_120000")
+            channels_filename: Base channels filename for fallback
+        
+        Returns:
+            List of channel IDs
+        """
+        import json
+        
+        channels_dir = self.config.channels_dir
+        channels_file = channels_dir / version_name
+        
+        try:
+            if not channels_file.exists():
+                self.logger.warning(f"Channel version file not found: {version_name}, trying fallback")
+                # Try fallback to current
+                channels_file = channels_dir / channels_filename
+                if not channels_file.exists():
+                    self.logger.error(f"No channel file found: {channels_file}")
+                    return []
+            
+            with open(channels_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            channels = data.get('channels', [])
+            self.logger.info(f"Loaded {len(channels)} channels from {version_name}")
+            return channels
+        
+        except Exception as e:
+            self.logger.error(f"Error loading channels from {version_name}: {e}")
+            return []
+
     # =========================================================================
     # SCHEDULER FOR DOCKER
     # =========================================================================
@@ -498,7 +542,7 @@ class ScheduledJobService:
         try:
             # Create background task for scheduler
             self.scheduler_task = asyncio.create_task(self._run_scheduler())
-            self.logger.info("✅ Scheduler task created")
+            self.logger.info("❌… Scheduler task created")
         except Exception as e:
             self.logger.error(f"Error starting scheduler: {e}")
 
@@ -537,7 +581,7 @@ class ScheduledJobService:
                 await asyncio.sleep(seconds_until_run)
                 
                 # Execute merge
-                self.logger.info("🔄 Executing scheduled merge...")
+                self.logger.info("📄 Executing scheduled merge...")
                 await self.execute_scheduled_merge()
                 
             except asyncio.CancelledError:
@@ -569,7 +613,7 @@ class ScheduledJobService:
         try:
             if is_success and job_result:
                 embed = {
-                    "title": "✅ Scheduled Merge Completed",
+                    "title": "❌… Scheduled Merge Completed",
                     "description": "The automated EPG merge has completed successfully",
                     "color": 3066993,  # Green
                     "fields": [
@@ -594,7 +638,7 @@ class ScheduledJobService:
                             "inline": True
                         },
                         {
-                            "name": "📺 Programs Included",
+                            "name": "🔺 Programs Included",
                             "value": str(job_result.get('programs', 0)),
                             "inline": True
                         },
@@ -604,7 +648,7 @@ class ScheduledJobService:
                             "inline": True
                         },
                         {
-                            "name": "🧠 Peak Memory",
+                            "name": "🧠  Peak Memory",
                             "value": f"{job_result.get('peak_memory_mb', 0):.2f} MB",
                             "inline": True
                         },
@@ -615,7 +659,7 @@ class ScheduledJobService:
                         }
                     ],
                     "timestamp": datetime.now().isoformat(),
-                    "footer": {"text": "EPG Merge v0.4.7"}
+                    "footer": {"text": "EPG Merge v0.4.8"}
                 }
             else:
                 embed = {
@@ -635,7 +679,7 @@ class ScheduledJobService:
                         }
                     ],
                     "timestamp": datetime.now().isoformat(),
-                    "footer": {"text": "EPG Merge v0.4.7"}
+                    "footer": {"text": "EPG Merge v0.4.8"}
                 }
             
             payload = {
