@@ -273,6 +273,20 @@ curl -X POST http://localhost:9193/api/channels/export > channels.json
 curl -X POST http://localhost:9193/api/channels/import \
   -H "Content-Type: application/json" \
   -d @channels.json
+
+# Save channels with versioning
+curl -X POST http://localhost:9193/api/channels/save \
+  -H "Content-Type: application/json" \
+  -d '{"channels":["ch1","ch2"],"sources_count":2}'
+
+# Get all channel versions
+curl http://localhost:9193/api/channels/versions
+
+# Download channel version
+curl http://localhost:9193/api/archives/download-channel/channels.json -o channels.json
+
+# Delete archived channel version
+curl -X DELETE http://localhost:9193/api/archives/delete-channel/channels.json.20251122_162638
 ```
 
 ### Merge
@@ -545,5 +559,5 @@ Before going live:
 
 ---
 
-**Last Updated:** November 1, 2025  
+**Last Updated:** November 23, 2025  
 **For detailed guides:** See docs/ folder

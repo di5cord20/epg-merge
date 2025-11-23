@@ -41,8 +41,8 @@ System design, data flow, and technical decisions.
                  ↓
 ┌──────────────────────────────────────────────────┐
 │ External Resources                               │
-│ - /config/archives/ (merged files + archives)    │
-│ - /config/epg_cache/ (cached XML files)          │
+│ - /data/archives/ (merged files + archives)      │
+│ - /data/epg_cache/ (cached XML files)            │
 │ - share.jesmann.com (XML sources)                │
 └──────────────────────────────────────────────────┘
 ```
@@ -68,6 +68,7 @@ src/
 │
 ├── pages/archives/ (3 sub-components)
 │   ├── ArchivesTable.js    → Sortable table display
+│   ├── ArchivesChannels.js → Channel versions table (NEW v0.4.8)
 │   ├── ArchivesLegend.js   → Status legend and guide
 │   └── (ArchivesPage.js manages these)
 │
@@ -160,16 +161,40 @@ User moves channels between lists
     ↓
 User clicks "Save Channels"
     ↓
-Frontend: Saves to localStorage + calls /api/channels/select
+Frontend: Calls /api/channels/save with:
+  - channels (array of channel IDs)
+  - sources_count (number of sources used)
     ↓
-Backend: Stored in SQLite (channels_selected table)
+Backend: channel_service.py executes save_selected_channels():
+  1. If channels.json exists:
+     - Get metadata from database
+     - Rename to channels.json.YYYYMMDD_HHMMSS
+     - Archive in /data/channels/
+     - Save archived metadata to channel_versions table
     ↓
-Selection persists and used for filtering
+  2. Write current channels to channels.json
+  3. Update database with new metadata
+  4. Save to database (channels_selected table)
+    ↓
+Result: Current version is live, previous version archived with metadata
+  - Current: /data/channels/channels.json
+  - Archive: /data/channels/channels.json.20251123_143000
+  - Archive: /data/channels/channels.json.20251122_162638
+  - etc.
+    ↓
+Frontend: Archives page shows both current and archived versions
+  - Can download any version
+  - Can delete archived versions (cannot delete current)
+  - Shows sources_count and channels_count metadata
+    ↓
+Selection persists and used for filtering during merge
 ```
 
 ### 3. Merge Execution Flow
 ```
 User clicks "Start Merge"
+    ↓
+Frontend: MergePage fetches fresh settings from backend
     ↓
 Frontend: Calls /api/merge/execute with:
   - sources (array of filenames)
@@ -180,13 +205,13 @@ Frontend: Calls /api/merge/execute with:
 Backend: merge_service.py begins:
   1. Downloads each XML file (with smart caching via HTTP HEAD)
   2. Checks if remote file changed before re-downloading
-  3. Caches locally for 24 hours
+  3. Caches locally in /data/epg_cache/ for 24 hours
     ↓
   4. Uses iterparse for memory-efficient streaming
   5. Filters channels by exact ID match
   6. Deduplicates programs (by start time + channel + title)
   7. Creates gzipped output as temporary file:
-     merged_YYYYMMDD_HHMMSS.xml.gz
+     /data/tmp/{output_filename}
     ↓
 Frontend: Real-time progress (0-100%) with colored log output
   - [*] Information (blue)
@@ -208,51 +233,66 @@ Frontend: Calls /api/merge/save with:
   - days_included (3/7/14)
     ↓
 Backend: merge_service.py executes:
-  1. If merged.xml.gz exists:
+  1. If current file exists in /data/current/:
      - Get metadata from database
-     - Rename to merged.xml.gz.YYYYMMDD_HHMMSS
-     - Move to archives folder
-     - Save archived metadata to database
+     - Rename to {filename}.YYYYMMDD_HHMMSS
+     - Move to /data/archives/
+     - Save archived metadata to archives table
     ↓
-  2. Move temporary file to merged.xml.gz
+  2. Copy (not move) temporary file from /data/tmp/ to /data/current/
   3. Update database with new metadata
+  4. Keep file in /data/tmp/ for continued downloads
     ↓
 Result: Current file is live, previous version archived with metadata
-  - Current: /config/archives/merged.xml.gz
-  - Archive: /config/archives/merged.xml.gz.20251101_120000
-  - Archive: /config/archives/merged.xml.gz.20251031_150000
-  - etc.
+  - Current: /data/current/{output_filename}
+  - Archive: /data/archives/{output_filename}.20251123_143000
+  - Archive: /data/archives/{output_filename}.20251122_160000
+  - Temp: /data/tmp/{output_filename} (for download, cleared on next merge)
+    ↓
+Archives page displays:
+  - Merged EPG Files panel: Current + all archives with metadata
+  - Channel Versions panel: Current channels.json + all archived versions
 ```
 
 ### 5. Settings & Job Scheduling Flow
 ```
-User configures settings (schedule, timeouts, Discord, etc.)
+User configures settings (schedule, timeouts, paths, channels, etc.)
     ↓
-Frontend: Each panel saves via /api/settings/set
+Frontend: Settings page panels each save via /api/settings/set
     ↓
 Backend: settings_service.py stores in SQLite (settings table)
     ↓
 Settings include:
+  - output_filename (default: "merged.xml.gz")
+  - channels_filename (default: "channels.json")
+  - current_dir (default: "/data/current")
+  - archive_dir (default: "/data/archives")
+  - channels_dir (default: "/data/channels")
   - merge_schedule (daily/weekly)
   - merge_time (HH:MM UTC)
   - merge_days (weekdays for weekly)
+  - merge_timeframe (3/7/14 days for scheduled jobs)
+  - merge_channels_version (which channels.json to use)
   - cron expression (auto-generated)
     ↓
-Job Service monitors or executes:
-  1. Manual trigger: /api/jobs/execute
-  2. Scheduled: (infrastructure ready, not yet active)
+Job Service monitors and executes:
+  1. Manual trigger: /api/jobs/execute or /api/jobs/execute-now
+  2. Scheduled: Background async task (infrastructure ready)
     ↓
 Job execution:
-  1. Load settings + sources + channels from database
-  2. Execute merge using same flow as manual
-  3. If successful: Send Discord notification (if configured)
-  4. Save execution record to job_history table
-  5. Auto-cleanup old job records based on retention
+  1. Load settings from database (including merge_timeframe, merge_channels_version)
+  2. Load sources from database
+  3. Load channels from specified version (/data/channels/{merge_channels_version})
+  4. Execute merge using same flow as manual (with configured timeframe)
+  5. If successful: Send Discord notification (if configured)
+  6. Save execution record to job_history table
+  7. Auto-cleanup old job records based on retention
     ↓
 Dashboard displays:
   - Job status (running/idle)
-  - Latest execution details
-  - Job history table
+  - Latest execution details (memory, channels, programs, duration)
+  - Next scheduled run time
+  - Job history table (sortable, paginated)
 ```
 
 ---
@@ -279,25 +319,74 @@ created_at TIMESTAMP           -- When created
 channels INTEGER               -- Number of channels included
 programs INTEGER               -- Number of programs included
 days_included INTEGER          -- Timeframe (3/7/14)
-size_bytes INTEGER            -- File size in bytes
+size_bytes INTEGER             -- File size in bytes
+```
+
+### channel_versions Table (NEW v0.4.8)
+```sql
+filename TEXT PRIMARY KEY      -- Channel version filename (with/without timestamp)
+created_at TIMESTAMP           -- When created/archived
+sources_count INTEGER          -- Number of sources used
+channels_count INTEGER         -- Number of channels in this version
+size_bytes INTEGER             -- File size in bytes
 ```
 
 ### job_history Table
 ```sql
 id INTEGER PRIMARY KEY AUTOINCREMENT
 job_id TEXT UNIQUE NOT NULL   -- Unique job identifier
-status TEXT                   -- pending|running|success|failed
+status TEXT                   -- pending|running|success|failed|timeout
 started_at TIMESTAMP          -- Job start time
 completed_at TIMESTAMP        -- Job completion time (null if running)
 merge_filename TEXT           -- Output filename if successful
 channels_included INTEGER     -- Channels in merge
 programs_included INTEGER     -- Programs in merge
 file_size TEXT               -- Human-readable size (e.g., "5.2MB")
+peak_memory_mb REAL          -- Peak memory usage during execution
+days_included INTEGER        -- Timeframe used (3/7/14)
 error_message TEXT           -- Error details if failed
 execution_time_seconds REAL  -- Total execution duration
 ```
 
-**No foreign key relationships** - tables are independent, reducing coupling.
+**Relationships:**
+- `settings.value` can reference `channel_versions.filename` (merge_channels_version setting)
+- `archives` and `channel_versions` are independent (separate file types)
+- `job_history.merge_filename` references filename in `archives` table
+- No foreign key constraints (tables are independent)
+
+**Settings Keys (v0.4.8):**
+```
+Output Files:
+  - output_filename: "merged.xml.gz"
+  - channels_filename: "channels.json"
+
+Directory Paths:
+  - current_dir: "/data/current"
+  - archive_dir: "/data/archives"
+  - channels_dir: "/data/channels"
+
+Merge Schedule:
+  - merge_schedule: "daily" | "weekly"
+  - merge_time: "HH:MM"
+  - merge_days: JSON array [0-6]
+  - merge_timeframe: "3" | "7" | "14"
+  - merge_channels_version: "channels.json" | "channels.json.{timestamp}"
+
+Timeouts & Quality:
+  - download_timeout: seconds
+  - merge_timeout: seconds
+  - channel_drop_threshold: percentage or ""
+
+Retention & Notifications:
+  - archive_retention_cleanup_expired: true|false
+  - discord_webhook: URL or ""
+
+UI Selections (not used by scheduler):
+  - selected_timeframe: "3" | "7" | "14"
+  - selected_feed_type: "iptv" | "gracenote"
+```
+
+**No foreign key relationships** - tables are independent, reducing coupling and simplifying maintenance.
 
 ---
 
@@ -307,7 +396,7 @@ execution_time_seconds REAL  -- Total execution duration
 ```
 First merge with canada.xml.gz:
   1. Download from share.jesmann.com
-  2. Store in /config/epg_cache/canada.xml.gz
+  2. Store in /data/epg_cache/canada.xml.gz
   3. Record download time
     ↓
 Second merge (same day) with canada.xml.gz:
@@ -398,8 +487,6 @@ Response:
 │                                     │
 │  /config (persistent volume)        │
 │  ├─ /app.db (SQLite)                │
-│  ├─ /archives/ (merged files)       │
-│  └─ /epg_cache/ (XML cache)         │
 │                                     │
 └─────────────────────────────────────┘
 ```
@@ -586,5 +673,5 @@ All endpoints wrapped with try-catch
 
 ---
 
-**Last Updated:** November 1, 2025  
+**Last Updated:** November 23, 2025  
 **For quick reference:** See QUICK_REFERENCE.md

@@ -4,6 +4,146 @@ All notable changes to the EPG Merge Application are documented in this file.
 
 ---
 
+## [0.4.8] - 2025-11-23
+
+### Added
+- **Channel Versioning with Archive/History**
+  - Save channels with automatic versioning (similar to merge workflow)
+  - Archive previous channel versions with timestamps
+  - Channel metadata tracking: sources count, channels count, file size
+  - New `channel_versions` database table for persistence
+  - Download/delete archived channel versions from Archives page
+  - `GET /api/channels/versions` - List all channel versions
+  - `POST /api/channels/save` - Save with versioning (replaces legacy select)
+  - `GET /api/archives/download-channel/{filename}` - Download channel JSON
+  - `DELETE /api/archives/delete-channel/{filename}` - Delete channel version
+
+- **Configurable Directory Paths**
+  - New Settings panel: "Output & Paths" (consolidates output and path settings)
+  - `current_dir` setting - Where live merged files stored (default: `/data/current`)
+  - `archive_dir` setting - Where archived files stored (default: `/data/archives`)
+  - `channels_dir` setting - Where channel versions stored (default: `/data/channels`)
+  - All directory paths validated and required in Settings UI
+  - Validation ensures paths start with `/` and are absolute paths
+
+- **Enhanced Merge Scheduling**
+  - `merge_timeframe` setting - EPG timeframe for scheduled jobs (3, 7, or 14 days)
+  - `merge_channels_version` setting - Which channels JSON version to use
+  - SettingsSchedule panel updated with timeframe radio buttons
+  - Dynamic channels version dropdown (populated from API)
+  - Scheduled merge now uses `merge_timeframe` instead of UI selection
+  - Scheduled merge now uses selected `merge_channels_version` instead of current
+
+- **Archives Page Enhancement**
+  - New `ArchivesChannels` component - Separate table for channel versions
+  - Channel versions panel displays: Filename, Created, Sources, Channels, Size
+  - Independent sorting for each panel (merged files vs channels)
+  - Current file indicator for both merged and channel files
+  - Download/delete actions for both file types
+  - Cannot delete current version from either panel
+
+- **Backend Path Resolution**
+  - `channel_service.get_channel_version_path()` - Helper for channel path resolution
+  - Uses `config.channels_dir` for reliable path handling in containers
+  - Archives router updated to use service helpers instead of direct config access
+
+### Changed
+- **Settings Service:**
+  - Added 5 new settings keys to `DEFAULTS`
+  - Convenience getter methods for new settings
+  
+- **Settings UI:**
+  - Renamed "Output File" panel to "Output & Paths"
+  - Added channels filename input field
+  - Added current directory input field
+  - Added archive directory input field
+  - Added channels directory input field
+  - All path fields with validation and helper text
+
+- **SettingsSchedule Component:**
+  - Added timeframe section with radio buttons (3/7/14 days)
+  - Added channels version dropdown (dynamically populated)
+  - Separate from UI-only `selected_timeframe` (now only for Sources page)
+
+- **ChannelsPage:**
+  - "Save Channels" button now calls `/api/channels/save` with versioning
+  - Sends `sources_count` along with channels for metadata tracking
+
+- **ArchivesPage:**
+  - Refactored to use `ArchivesChannels` component (like `ArchivesTable`)
+  - Separate sort state for merged files and channels
+  - Two independent panels with their own tables
+
+- **Job Service:**
+  - `execute_scheduled_merge()` now uses `merge_timeframe` setting
+  - `execute_scheduled_merge()` now uses `merge_channels_version` setting
+  - Added `_load_channels_from_file()` helper to load specific channel version
+
+- **Database:**
+  - Added `channel_versions` table for channel metadata
+  - Added `save_channel_version()`, `get_channel_version()`, `delete_channel_version()` methods
+
+- **Routers:**
+  - Archives router: added download-channel and delete-channel endpoints
+  - Channels router: updated to accept `sources_count` parameter
+
+- **Import Paths:**
+  - Fixed router imports to use full backend path: `from backend.version import get_version`
+  - Ensures proper module resolution in router subdirectories
+
+### Fixed
+- Channel download/delete now properly resolves paths in Docker containers
+- Version import in health router now uses correct backend path
+- Settings panel validation properly shows error messages for required fields
+- Directory path validation prevents empty or relative paths
+
+### Technical Details
+- **New Files:**
+  - `frontend/src/pages/archives/ArchivesChannels.js` - Channel versions table component
+  
+- **Modified Files:**
+  - `backend/config.py` - Added `channels_dir` path
+  - `backend/version.py` - Bumped to 0.4.8
+  - `backend/services/settings_service.py` - Added new settings keys and getters
+  - `backend/services/channel_service.py` - Added save workflow and path helper
+  - `backend/database.py` - Added channel_versions table
+  - `backend/routers/channels.py` - Added save and versions endpoints
+  - `backend/routers/archives.py` - Added channel download/delete endpoints
+  - `backend/services/job_service.py` - Updated to use merge_timeframe and merge_channels_version
+  - `frontend/src/pages/SettingsPage.js` - Added new settings and validation
+  - `frontend/src/pages/settings/SettingsOutput.js` - Added path fields
+  - `frontend/src/pages/settings/SettingsSchedule.js` - Added timeframe and channels version
+  - `frontend/src/pages/ChannelsPage.js` - Updated to use save endpoint
+  - `frontend/src/pages/ArchivesPage.js` - Refactored with ArchivesChannels component
+  - `frontend/src/components/Navbar.js` - Updated version default to 0.4.8
+
+### Database
+- New table: `channel_versions`
+  - `filename` (TEXT PRIMARY KEY)
+  - `created_at` (TIMESTAMP)
+  - `sources_count` (INTEGER)
+  - `channels_count` (INTEGER)
+  - `size_bytes` (INTEGER)
+
+### Testing Status
+- ✅ All 56+ existing tests still passing
+- ✅ Channel save/archive workflow tested
+- ✅ Archives page with two panels tested
+- ✅ Settings validation tested
+- ✅ Scheduled merge with new settings tested
+
+### Migration Notes
+- **No breaking changes** - All existing APIs preserved
+- **Backward compatible** - Old channel selection workflow still works via `/api/channels/select`
+- **Directory auto-creation** - Config automatically creates `/data/channels/` if missing
+- **Settings migration** - New settings added with sensible defaults matching current behavior
+- **Scheduled merges** - Now use `merge_timeframe` (recommend setting this value)
+
+### Known Limitations
+- None new in this release
+
+---
+
 ## [0.4.7] - 2025-11-02
 
 ### Added

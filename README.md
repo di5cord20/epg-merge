@@ -126,6 +126,11 @@ sleep 30
 | **Merge Schedule** | Run daily or specific days weekly | Daily |
 | **Merge Time** | What time to run (HH:MM format, UTC) | 00:00 |
 | **Merge Days** | Which days to run (if weekly) | All days |
+| **Merge Timeframe** | EPG timeframe for scheduled jobs (3/7/14 days) | 3 days |
+| **Channel Version** | Which saved channels to use for scheduled merge | current |
+| **Current Directory** | Where live merged file is stored | /data/current |
+| **Archive Directory** | Where archived files are stored | /data/archives |
+| **Channels Directory** | Where channel versions are stored | /data/channels |
 | **Download Timeout** | Seconds to wait when downloading files | 120 |
 | **Merge Timeout** | Seconds to wait for merge to complete | 300 |
 | **Channel Drop Threshold** | Alert if channels drop below this count | (disabled) |
@@ -305,4 +310,4 @@ MIT License - See **[LICENSE](LICENSE)** file for details
 
 ---
 
-**Version:** 0.4.7 | **Last Updated:** November 2, 2025
+**Version:** 0.4.8 | **Last Updated:** November 23, 2025

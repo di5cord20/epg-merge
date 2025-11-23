@@ -1,10 +1,10 @@
-# API Specification v0.4.3
+# API Specification v0.4.8
 
 Complete REST API documentation for EPG Merge.
 
 **Base URL:** `http://localhost:9193/api`  
 **Content-Type:** `application/json`  
-**Version:** 0.4.3
+**Version:** 0.4.8
 
 ---
 
@@ -17,7 +17,7 @@ All responses follow this structure:
 {
   "success": true,
   "data": { ... },
-  "version": "0.4.3"
+  "version": "0.4.8"
 }
 ```
 
@@ -27,7 +27,7 @@ All responses follow this structure:
   "success": false,
   "error": "Description of what went wrong",
   "code": "ERROR_CODE",
-  "version": "0.4.3"
+  "version": "0.4.8"
 }
 ```
 
@@ -49,7 +49,7 @@ curl http://localhost:9193/api/health
 ```json
 {
   "status": "ok",
-  "version": "0.4.3",
+  "version": "0.4.8",
   "uptime_seconds": 3600
 }
 ```
@@ -63,7 +63,7 @@ Get current application status.
   "status": "idle",
   "merge_running": false,
   "last_merge": "2025-11-01T14:30:00Z",
-  "version": "0.4.3"
+  "version": "0.4.8"
 }
 ```
 
@@ -220,6 +220,55 @@ Import channels from backup file.
 }
 ```
 
+#### POST /api/channels/save (NEW v0.4.8)
+Save selected channels with versioning and archive.
+
+**Request Body:**
+```json
+{
+  "channels": ["bbc1.uk", "itv.uk"],
+  "sources_count": 2
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "filename": "channels.json",
+  "channels": 2,
+  "sources": 2,
+  "archived": true
+}
+```
+
+#### GET /api/channels/versions (NEW v0.4.8)
+Get all channel versions (current and archived).
+
+**Response:**
+```json
+{
+  "versions": [
+    {
+      "filename": "channels.json",
+      "is_current": true,
+      "created_at": "2025-11-23T14:30:00Z",
+      "sources_count": 2,
+      "channels_count": 150,
+      "size_bytes": 2048
+    },
+    {
+      "filename": "channels.json.20251122_162638",
+      "is_current": false,
+      "created_at": "2025-11-22T16:26:38Z",
+      "sources_count": 2,
+      "channels_count": 148,
+      "size_bytes": 2000
+    }
+  ]
+}
+```
+
 ---
 
 ### Merge Operations
@@ -365,6 +414,32 @@ Manually trigger archive cleanup based on retention policy.
     "deleted_count": 3,
     "freed_bytes": 15728640
   }
+}
+```
+
+#### GET /api/archives/download-channel/{filename} (NEW v0.4.8)
+Download a channel version JSON file.
+
+**Example:**
+```bash
+curl -O http://localhost:9193/api/archives/download-channel/channels.json
+```
+
+**Response:** JSON file (application/json)
+
+#### DELETE /api/archives/delete-channel/{filename} (NEW v0.4.8)
+Delete an archived channel version (cannot delete current).
+
+**Example:**
+```bash
+curl -X DELETE http://localhost:9193/api/archives/delete-channel/channels.json.20251122_162638
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Deleted channels.json.20251122_162638"
 }
 ```
 
