@@ -58,3 +58,68 @@ def init_sources_routes(source_service, db):
         except Exception as e:
             logger.error(f"Error saving sources: {e}")
             raise HTTPException(status_code=500, detail="Failed to save sources")
+        
+    @router.post("/api/sources/save")
+    async def save_sources(body: dict):
+        """Save sources with versioning (like channels)"""
+        sources = body.get('sources', [])
+        timeframe = body.get('timeframe', '3')
+        feed_type = body.get('feed_type', 'iptv')
+        
+        if not sources:
+            raise HTTPException(status_code=400, detail="No sources provided")
+        
+        # Save versioned copy to /data/sources
+        import json
+        from pathlib import Path
+        from datetime import datetime
+        
+        sources_dir = Path('/data/sources')
+        sources_dir.mkdir(exist_ok=True)
+        
+        # Save as current
+        current_file = sources_dir / f'sources.json'
+        current_file.write_text(json.dumps({
+            'sources': sources,
+            'timeframe': timeframe,
+            'feed_type': feed_type,
+            'saved_at': datetime.now().isoformat()
+        }, indent=2))
+        
+        # Also save timestamped version
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        versioned_file = sources_dir / f'sources.json.{timestamp}'
+        versioned_file.write_text(current_file.read_text())
+        
+        return {
+            'status': 'saved',
+            'sources_count': len(sources),
+            'version': timestamp
+        }
+
+    @router.get("/api/sources/versions")
+    async def get_source_versions():
+        """Get list of saved source versions"""
+        from pathlib import Path
+        import json
+        
+        sources_dir = Path('/data/sources')
+        if not sources_dir.exists():
+            return {'versions': []}
+        
+        versions = []
+        for f in sorted(sources_dir.glob('sources.json*'), reverse=True):
+            try:
+                data = json.loads(f.read_text())
+                versions.append({
+                    'name': f.name,
+                    'filename': f.name,
+                    'sources': data.get('sources', []),
+                    'timeframe': data.get('timeframe', '3'),
+                    'feed_type': data.get('feed_type', 'iptv'),
+                    'saved_at': data.get('saved_at', 'unknown')
+                })
+            except:
+                pass
+        
+        return {'versions': versions}

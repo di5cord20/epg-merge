@@ -1,8 +1,3 @@
-"""
-EPG Merge Application Configuration Management
-Handles environment-based configuration with sensible defaults
-"""
-
 import os
 from pathlib import Path
 from typing import Dict, Any
@@ -14,31 +9,47 @@ class Config:
     def __init__(self):
         """Initialize configuration from environment variables"""
         self.environment = os.getenv("ENVIRONMENT", "development")
-        # For development: config at project root
-        # For production: /config (standard location)
-        if self.environment == "development":
-            # Go up one level from backend/ to project root
-            default_data_dir = str(Path(__file__).parent.parent / "data")
-        else:
-            default_data_dir = "/data"
         
-        # Data directory structure
-        self.data_dir = Path(os.getenv("DATA_DIR", default_data_dir))
-        self.tmp_dir = Path(os.getenv("TMP_DIR", self.data_dir / "tmp"))
-        self.current_dir = Path(os.getenv("CURRENT_DIR", self.data_dir / "current"))
-        self.archive_dir = Path(os.getenv("ARCHIVE_DIR", self.data_dir / "archives"))
-        self.channels_dir = Path(os.getenv("CHANNELS_DIR", self.data_dir / "channels"))
+        # Data directory structure (MUST be absolute paths)
+        default_data_dir = "/data" if self.environment == "production" else str(Path(__file__).parent.parent / "data")
         
-        # Config and cache - MOVED to /data/epg_cache
-        if self.environment == "development":
-            default_config_dir = str(Path(__file__).parent.parent / "config")
-        else:
-            default_config_dir = "/config"
-        self.config_dir = Path(os.getenv("CONFIG_DIR", default_config_dir))
-        self.cache_dir = Path(os.getenv("CACHE_DIR", self.data_dir / "epg_cache"))
+        self.data_dir = self._validate_absolute_path(
+            os.getenv("DATA_DIR", default_data_dir),
+            "DATA_DIR"
+        )
+        self.tmp_dir = self._validate_absolute_path(
+            os.getenv("TMP_DIR", str(self.data_dir / "tmp")),
+            "TMP_DIR"
+        )
+        self.current_dir = self._validate_absolute_path(
+            os.getenv("CURRENT_DIR", str(self.data_dir / "current")),
+            "CURRENT_DIR"
+        )
+        self.archive_dir = self._validate_absolute_path(
+            os.getenv("ARCHIVE_DIR", str(self.data_dir / "archives")),
+            "ARCHIVE_DIR"
+        )
+        self.channels_dir = self._validate_absolute_path(
+            os.getenv("CHANNELS_DIR", str(self.data_dir / "channels")),
+            "CHANNELS_DIR"
+        )
+        
+        # Config and cache
+        default_config_dir = "/config" if self.environment == "production" else str(Path(__file__).parent.parent / "config")
+        self.config_dir = self._validate_absolute_path(
+            os.getenv("CONFIG_DIR", default_config_dir),
+            "CONFIG_DIR"
+        )
+        self.cache_dir = self._validate_absolute_path(
+            os.getenv("CACHE_DIR", str(self.data_dir / "epg_cache")),
+            "CACHE_DIR"
+        )
         
         # Database
-        self.db_path = Path(os.getenv("DB_PATH", self.config_dir / "app.db"))
+        self.db_path = self._validate_absolute_path(
+            os.getenv("DB_PATH", str(self.config_dir / "app.db")),
+            "DB_PATH"
+        )
         
         # Server settings
         self.port = int(os.getenv("SERVICE_PORT", 9193))
@@ -49,6 +60,33 @@ class Config:
         
         # Create directories
         self._ensure_directories()
+    
+    def _validate_absolute_path(self, path_str: str, env_var_name: str) -> Path:
+        """Validate that a path is absolute
+        
+        Args:
+            path_str: Path string to validate
+            env_var_name: Name of environment variable (for error messages)
+        
+        Returns:
+            Validated Path object
+        
+        Raises:
+            ValueError: If path is not absolute
+        """
+        if not path_str:
+            raise ValueError(f"{env_var_name} cannot be empty")
+        
+        path = Path(path_str)
+        
+        if not path.is_absolute():
+            raise ValueError(
+                f"{env_var_name} must be an absolute path, got: {path_str}\n"
+                f"Examples: /data, /opt/epg-merge/data\n"
+                f"Not relative paths like: data, ./data, ~/data"
+            )
+        
+        return path
     
     def _ensure_directories(self) -> None:
         """Create required directories if they don't exist"""

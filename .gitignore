@@ -42,3 +42,11 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Environment variables (user-specific configuration)
+.env
+.env.local
+.env.*.local
+
+# Ignore actual config but keep example
+!.env.example

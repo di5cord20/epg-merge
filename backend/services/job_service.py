@@ -1,11 +1,11 @@
 """
-EPG Merge - Scheduled Job Service (v0.4.8 Enhanced)
+EPG Merge - Scheduled Job Service (v0.4.9 Complete)
 Handles automated merge execution with:
 - Cron scheduling
 - Timeout enforcement (hard-kill on exceed)
 - Peak memory tracking
 - Enhanced Discord notifications
-- Uses merge_timeframe and merge_channels_version settings
+- AUTO-RECOVERY: Detects & clears stuck jobs on startup
 """
 
 import asyncio
@@ -41,7 +41,6 @@ class MemoryMonitor:
         self.process = psutil.Process(os.getpid())
         self._monitoring = False
         self._monitor_task = None
-        self.scheduler_task: Optional[asyncio.Task] = None
     
     async def start(self) -> None:
         """Start memory monitoring"""
@@ -69,7 +68,7 @@ class MemoryMonitor:
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
                 
-                await asyncio.sleep(0.1)  # Sample every 100ms
+                await asyncio.sleep(0.1)
         except asyncio.CancelledError:
             pass
 
@@ -78,16 +77,6 @@ class ScheduledJobService:
     """Manages scheduled merge jobs with cron execution, timeouts, and memory tracking"""
     
     def __init__(self, config, db, merge_service, channel_service, source_service, settings_service):
-        """Initialize job service
-        
-        Args:
-            config: Application config
-            db: Database instance
-            merge_service: Merge service for executing merges
-            channel_service: Channel service for loading channels
-            source_service: Source service for loading sources
-            settings_service: Settings service for config
-        """
         self.config = config
         self.db = db
         self.merge_service = merge_service
@@ -96,7 +85,6 @@ class ScheduledJobService:
         self.settings_service = settings_service
         self.logger = logging.getLogger(self.__class__.__name__)
         
-        # Job state
         self.current_job_task: Optional[asyncio.Task] = None
         self.is_job_running = False
         self.scheduler_task: Optional[asyncio.Task] = None
@@ -137,9 +125,48 @@ class ScheduledJobService:
             
             conn.commit()
             self.logger.info("✅ Job history table initialized")
+            self._cleanup_stuck_jobs()
+            
         except Exception as e:
             self.logger.error(f"Error initializing job history table: {e}")
             raise
+    
+    def _cleanup_stuck_jobs(self, timeout_threshold_hours: int = 2) -> None:
+        """Auto-detect and clean up jobs stuck in RUNNING state on startup"""
+        try:
+            conn = self.db._get_connection()
+            cursor = conn.cursor()
+            
+            cutoff_time = (datetime.now() - timedelta(hours=timeout_threshold_hours)).isoformat()
+            
+            cursor.execute('''
+                SELECT id, job_id, started_at FROM job_history 
+                WHERE status = 'running' AND started_at < ?
+            ''', (cutoff_time,))
+            
+            stuck_jobs = cursor.fetchall()
+            
+            if stuck_jobs:
+                self.logger.warning(f"🔧 Found {len(stuck_jobs)} stuck job(s) in RUNNING state")
+                
+                for job in stuck_jobs:
+                    job_id = job[1]
+                    cursor.execute('''
+                        UPDATE job_history 
+                        SET status = 'failed',
+                            completed_at = datetime('now'),
+                            error_message = 'Auto-recovered: Job was stuck in RUNNING state'
+                        WHERE job_id = ?
+                    ''', (job_id,))
+                    self.logger.warning(f"  ✅ Recovered {job_id}")
+                
+                conn.commit()
+                self.logger.info(f"✅ Recovered {len(stuck_jobs)} stuck job(s)")
+            else:
+                self.logger.info("✅ No stuck jobs found")
+                
+        except Exception as e:
+            self.logger.error(f"Error cleaning up stuck jobs: {e}")
     
     def save_job_record(self, job_id: str, status: str, started_at: str,
                        completed_at: Optional[str] = None,
@@ -167,7 +194,7 @@ class ScheduledJobService:
                   error_message, execution_time))
             
             conn.commit()
-            self.logger.info(f"Saved job record: {job_id} - {status}")
+            self.logger.info(f"✅ Saved job record: {job_id} - {status}")
         except Exception as e:
             self.logger.error(f"Error saving job record: {e}")
             raise
@@ -215,11 +242,7 @@ class ScheduledJobService:
             return None
     
     def clear_job_history(self) -> int:
-        """Delete ALL job history records
-        
-        Returns:
-            Number of records deleted
-        """
+        """Delete ALL job history records"""
         try:
             conn = self.db._get_connection()
             cursor = conn.cursor()
@@ -247,7 +270,7 @@ class ScheduledJobService:
             conn.commit()
             
             if deleted > 0:
-                self.logger.info(f"Cleaned up {deleted} old job records")
+                self.logger.info(f"✅ Cleaned up {deleted} old job records")
             
             return deleted
         except Exception as e:
@@ -259,41 +282,25 @@ class ScheduledJobService:
     # =========================================================================
     
     async def execute_scheduled_merge(self) -> Dict[str, Any]:
-        """Execute merge using saved settings with timeout enforcement
-        
-        Uses:
-        - merge_timeframe: EPG timeframe (3, 7, or 14 days)
-        - merge_channels_version: Which channels JSON to use
-        - selected_sources: Previously selected sources
-        - merge_timeout: Timeout in seconds
-        
-        Returns:
-            Dictionary with job results
-        """
+        """Execute merge using saved settings with timeout enforcement"""
         job_id = f"scheduled_merge_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         start_time = datetime.now()
         start_iso = start_time.isoformat()
         
-        self.logger.info(f"📄 Starting scheduled merge job: {job_id}")
+        self.logger.info(f"📋 Starting scheduled merge job: {job_id}")
         self.is_job_running = True
         
-        # Initialize memory monitor
         memory_monitor = MemoryMonitor()
         await memory_monitor.start()
         
         try:
-            # Get timeout from settings
             settings = self.settings_service.get_all()
             merge_timeout = int(settings.get('merge_timeout', 300))
             
             self.logger.info(f"⏱️ Merge timeout set to: {merge_timeout}s")
-            self.logger.info(f"⏱️ Will enforce timeout on merge execution")
-            
-            # Save initial record as RUNNING
             self.save_job_record(job_id, JobStatus.RUNNING, start_iso)
             
-            # Load settings for merge
-            self.logger.info(f"Loading merge configuration...")
+            # Load settings
             selected_sources_str = settings.get('selected_sources', '[]')
             merge_timeframe = settings.get('merge_timeframe', '3')
             merge_channels_version = settings.get('merge_channels_version', 'current')
@@ -303,17 +310,15 @@ class ScheduledJobService:
             output_filename = settings.get('output_filename', 'merged.xml.gz')
             channels_filename = settings.get('channels_filename', 'channels.json')
             
-            # Parse JSON from settings
             try:
                 selected_sources = json.loads(selected_sources_str) if isinstance(selected_sources_str, str) else selected_sources_str
             except (json.JSONDecodeError, TypeError) as e:
-                self.logger.error(f"Error parsing sources from settings: {e}")
+                self.logger.error(f"Error parsing sources: {e}")
                 raise ValueError(f"Invalid sources configuration: {e}")
             
             if not selected_sources:
-                raise ValueError(f"No sources configured")
+                raise ValueError("No sources configured")
             
-            # Load channels from the specified version file
             self.logger.info(f"Loading channels from version: {merge_channels_version}")
             selected_channels = self._load_channels_from_file(merge_channels_version, channels_filename)
             
@@ -323,29 +328,24 @@ class ScheduledJobService:
             self.logger.info(f"  Sources: {len(selected_sources)}")
             self.logger.info(f"  Channels: {len(selected_channels)}")
             self.logger.info(f"  Timeframe: {merge_timeframe} days")
-            self.logger.info(f"  Feed Type: {feed_type}")
-            self.logger.info(f"  Channels Version: {merge_channels_version}")
             
             # Execute merge with timeout
-            self.logger.info(f"Executing merge with {merge_timeout}s timeout...")
+            self.logger.info(f"⏳ Executing merge with {merge_timeout}s timeout...")
             
             try:
-                self.logger.info(f"📄 Calling merge_service.execute_merge()...")
+                exec_start = datetime.now()
                 
-                start_time = datetime.now()
+                merge_result = await asyncio.wait_for(
+                    self.merge_service.execute_merge({
+                        'sources': selected_sources,
+                        'channels': selected_channels,
+                        'timeframe': merge_timeframe,
+                        'feed_type': feed_type
+                    }),
+                    timeout=merge_timeout
+                )
                 
-                merge_result = await self.merge_service.execute_merge({
-                    'sources': selected_sources,
-                    'channels': selected_channels,
-                    'timeframe': merge_timeframe,
-                    'feed_type': feed_type
-                })
-                
-                # Check if we exceeded timeout (post-execution check)
-                elapsed = (datetime.now() - start_time).total_seconds()
-                if elapsed > merge_timeout:
-                    self.logger.warning(f"⚠️ Merge took {elapsed:.1f}s, exceeding timeout of {merge_timeout}s")
-                
+                elapsed = (datetime.now() - exec_start).total_seconds()
                 self.logger.info(f"✅ Merge completed in {elapsed:.1f}s")
                 
             except asyncio.TimeoutError:
@@ -363,7 +363,6 @@ class ScheduledJobService:
                     execution_time=execution_time
                 )
                 
-                # Send timeout notification
                 if discord_webhook:
                     await self._send_discord_notification(
                         webhook_url=discord_webhook,
@@ -379,9 +378,9 @@ class ScheduledJobService:
                     'execution_time': execution_time
                 }
             
-            self.logger.info(f"Merge returned: {merge_result}")
+            self.logger.info(f"Merge returned successfully")
             
-            # Save as current (archives previous)
+            # Save as current
             self.logger.info(f"Saving merge as current...")
             self.merge_service.save_merge({
                 'filename': merge_result['filename'],
@@ -390,7 +389,6 @@ class ScheduledJobService:
                 'days_included': int(merge_timeframe)
             })
             
-            # Cleanup old job records
             self.cleanup_old_jobs(retention_days)
             
             end_time = datetime.now()
@@ -410,8 +408,6 @@ class ScheduledJobService:
                 'execution_time': execution_time
             }
             
-            # Save success record
-            self.logger.info(f"Saving job success record...")
             self.save_job_record(
                 job_id, JobStatus.SUCCESS, start_iso,
                 completed_at=end_time.isoformat(),
@@ -426,7 +422,6 @@ class ScheduledJobService:
             
             self.logger.info(f"✅ Scheduled merge completed successfully")
             
-            # Send success notification
             if discord_webhook:
                 self.logger.info(f"Sending Discord notification...")
                 await self._send_discord_notification(
@@ -450,7 +445,6 @@ class ScheduledJobService:
                 error_message="Job was cancelled",
                 execution_time=execution_time
             )
-            
             raise
             
         except Exception as e:
@@ -460,8 +454,6 @@ class ScheduledJobService:
             peak_memory = await memory_monitor.stop()
             error_msg = str(e)
             
-            # Save failure record
-            self.logger.info(f"Saving job failure record...")
             self.save_job_record(
                 job_id, JobStatus.FAILED, start_iso,
                 completed_at=end_time.isoformat(),
@@ -470,7 +462,6 @@ class ScheduledJobService:
                 execution_time=execution_time
             )
             
-            # Send failure notification
             try:
                 settings = self.settings_service.get_all()
                 discord_webhook = settings.get('discord_webhook', '')
@@ -499,15 +490,7 @@ class ScheduledJobService:
             self.logger.info(f"Job service cleanup complete")
 
     def _load_channels_from_file(self, version_name: str, channels_filename: str) -> list:
-        """Load channels from a specific version file
-        
-        Args:
-            version_name: Filename to load (e.g., "channels.json" or "channels.json.20251122_120000")
-            channels_filename: Base channels filename for fallback
-        
-        Returns:
-            List of channel IDs
-        """
+        """Load channels from a specific version file"""
         import json
         
         channels_dir = self.config.channels_dir
@@ -516,7 +499,6 @@ class ScheduledJobService:
         try:
             if not channels_file.exists():
                 self.logger.warning(f"Channel version file not found: {version_name}, trying fallback")
-                # Try fallback to current
                 channels_file = channels_dir / channels_filename
                 if not channels_file.exists():
                     self.logger.error(f"No channel file found: {channels_file}")
@@ -534,32 +516,53 @@ class ScheduledJobService:
             return []
 
     # =========================================================================
-    # SCHEDULER FOR DOCKER
+    # SCHEDULER
     # =========================================================================
     
-    async def start_scheduler(self):
+    def start_scheduler(self):
         """Start the cron scheduler for automated merges"""
         try:
-            # Create background task for scheduler
-            self.scheduler_task = asyncio.create_task(self._run_scheduler())
-            self.logger.info("❌… Scheduler task created")
+            self.logger.info("🚀 Creating scheduler background task...")
+            task = asyncio.create_task(self._run_scheduler())
+            self.scheduler_task = task
+            self.logger.info("✅ Scheduler background task created and running")
         except Exception as e:
-            self.logger.error(f"Error starting scheduler: {e}")
+            self.logger.error(f"Error starting scheduler: {e}", exc_info=True)
 
     async def _run_scheduler(self):
-        """Background task that runs the scheduler"""
-        from croniter import croniter
+        """Background scheduler loop - checks settings and runs merges on schedule"""
+        self.logger.info("🚀 SCHEDULER LOOP STARTED")
         
         while True:
             try:
-                # Get settings
+                # Get current settings
                 settings = self.settings_service.get_all()
+                
                 merge_schedule = settings.get('merge_schedule', 'daily')
                 merge_time = settings.get('merge_time', '00:00')
                 merge_days = settings.get('merge_days', '[]')
+                selected_sources = settings.get('selected_sources', '[]')
                 
-                # Build cron expression
-                hours, minutes = merge_time.split(':')
+                # Validate sources are configured
+                try:
+                    sources_list = json.loads(selected_sources) if isinstance(selected_sources, str) else selected_sources
+                except:
+                    sources_list = []
+                
+                if not sources_list:
+                    self.logger.warning("⚠️  No sources configured, retrying in 5 minutes")
+                    await asyncio.sleep(300)
+                    continue
+                
+                # Parse merge time (HH:MM format)
+                try:
+                    hours, minutes = merge_time.split(':')
+                except ValueError:
+                    self.logger.error(f"Invalid merge_time format: {merge_time}, retrying in 5 minutes")
+                    await asyncio.sleep(300)
+                    continue
+                
+                # Build cron expression from schedule settings
                 if merge_schedule == 'daily':
                     cron_expr = f"{minutes} {hours} * * *"
                 else:  # weekly
@@ -570,26 +573,58 @@ class ScheduledJobService:
                         days_str = "0,1,2,3,4,5,6"
                     cron_expr = f"{minutes} {hours} * * {days_str}"
                 
-                # Calculate seconds until next run
+                self.logger.info(f"📅 Cron expression: {cron_expr}")
+                
+                # Calculate next scheduled run time
+                from croniter import croniter
                 cron = croniter(cron_expr, datetime.now())
                 next_run = cron.get_next(datetime)
-                seconds_until_run = (next_run - datetime.now()).total_seconds()
+                seconds_until = (next_run - datetime.now()).total_seconds()
                 
-                self.logger.info(f"⏱️ Next scheduled merge: {next_run} ({seconds_until_run:.0f}s from now)")
+                self.logger.info(f"⏱️  Next scheduled run: {next_run.strftime('%Y-%m-%d %H:%M:%S')} ({seconds_until:.0f}s from now)")
                 
-                # Sleep until next run
-                await asyncio.sleep(seconds_until_run)
+                # Check if another job is already running
+                if self.is_job_running:
+                    self.logger.warning("⚠️  Previous merge job still running, checking again in 30s")
+                    await asyncio.sleep(30)
+                    continue
                 
-                # Execute merge
-                self.logger.info("📄 Executing scheduled merge...")
-                await self.execute_scheduled_merge()
+                # Sleep until the scheduled time (check every 60s in case settings change)
+                self.logger.info(f"😴 Sleeping until scheduled time (checking every 60s for setting changes)...")
+                sleep_remaining = seconds_until
+                check_interval = 60  # Check every 60 seconds
+                
+                while sleep_remaining > 0:
+                    sleep_chunk = min(check_interval, sleep_remaining)
+                    await asyncio.sleep(sleep_chunk)
+                    sleep_remaining -= sleep_chunk
+                    
+                    # Check if settings changed (merge_time or merge_schedule)
+                    if sleep_remaining > 0:
+                        current_settings = self.settings_service.get_all()
+                        new_merge_time = current_settings.get('merge_time', merge_time)
+                        new_merge_schedule = current_settings.get('merge_schedule', merge_schedule)
+                        
+                        if new_merge_time != merge_time or new_merge_schedule != merge_schedule:
+                            self.logger.info(f"⏰ Schedule changed! Recalculating...")
+                            break  # Exit sleep loop to recalculate
+                
+                # Final check: ensure we're not already running a job
+                if self.is_job_running:
+                    self.logger.warning("⚠️  Job became running during wait, skipping this execution")
+                    continue
+                
+                # EXECUTE MERGE at scheduled time
+                self.logger.info("▶️  ===== EXECUTING SCHEDULED MERGE =====")
+                result = await self.execute_scheduled_merge()
+                self.logger.info(f"▶️  ===== MERGE COMPLETE: {result.get('status', 'UNKNOWN')} =====")
                 
             except asyncio.CancelledError:
-                self.logger.info("Scheduler stopped")
+                self.logger.info("Scheduler cancelled - shutting down")
                 break
             except Exception as e:
                 self.logger.error(f"Scheduler error: {e}", exc_info=True)
-                # Wait 60 seconds before retrying
+                self.logger.info("Waiting 60s before retrying scheduler...")
                 await asyncio.sleep(60)
 
     # =========================================================================
@@ -601,95 +636,43 @@ class ScheduledJobService:
                                         error_message: Optional[str] = None,
                                         job_id: Optional[str] = None,
                                         is_success: bool = True) -> None:
-        """Send Discord notification for job completion with enhanced stats
-        
-        Args:
-            webhook_url: Discord webhook URL
-            job_result: Merge result if successful
-            error_message: Error description if failed
-            job_id: Job identifier
-            is_success: Whether job succeeded
-        """
+        """Send Discord notification"""
         try:
             if is_success and job_result:
                 embed = {
-                    "title": "❌… Scheduled Merge Completed",
+                    "title": "✅ Scheduled Merge Completed",
                     "description": "The automated EPG merge has completed successfully",
-                    "color": 3066993,  # Green
+                    "color": 3066993,
                     "fields": [
-                        {
-                            "name": "📄 Filename",
-                            "value": job_result.get('filename', 'N/A'),
-                            "inline": False
-                        },
-                        {
-                            "name": "📅 Created",
-                            "value": job_result.get('created_at', 'N/A'),
-                            "inline": False
-                        },
-                        {
-                            "name": "📦 Output Size",
-                            "value": job_result.get('file_size', 'N/A'),
-                            "inline": True
-                        },
-                        {
-                            "name": "🎬 Channels Kept",
-                            "value": str(job_result.get('channels', 0)),
-                            "inline": True
-                        },
-                        {
-                            "name": "🔺 Programs Included",
-                            "value": str(job_result.get('programs', 0)),
-                            "inline": True
-                        },
-                        {
-                            "name": "📆 Days Included",
-                            "value": str(job_result.get('days_included', 0)),
-                            "inline": True
-                        },
-                        {
-                            "name": "🧠  Peak Memory",
-                            "value": f"{job_result.get('peak_memory_mb', 0):.2f} MB",
-                            "inline": True
-                        },
-                        {
-                            "name": "⏱️ Duration",
-                            "value": f"{job_result.get('execution_time', 0):.2f}s",
-                            "inline": True
-                        }
+                        {"name": "📋 Filename", "value": job_result.get('filename', 'N/A'), "inline": False},
+                        {"name": "📅 Created", "value": job_result.get('created_at', 'N/A'), "inline": False},
+                        {"name": "📦 Size", "value": job_result.get('file_size', 'N/A'), "inline": True},
+                        {"name": "🎬 Channels", "value": str(job_result.get('channels', 0)), "inline": True},
+                        {"name": "📺 Programs", "value": str(job_result.get('programs', 0)), "inline": True},
+                        {"name": "📆 Days", "value": str(job_result.get('days_included', 0)), "inline": True},
+                        {"name": "🧠 Memory", "value": f"{job_result.get('peak_memory_mb', 0):.2f} MB", "inline": True},
+                        {"name": "⏱️ Duration", "value": f"{job_result.get('execution_time', 0):.2f}s", "inline": True}
                     ],
                     "timestamp": datetime.now().isoformat(),
-                    "footer": {"text": "EPG Merge v0.4.8"}
+                    "footer": {"text": "EPG Merge v0.4.9"}
                 }
             else:
                 embed = {
                     "title": "❌ Scheduled Merge Failed",
                     "description": "The automated EPG merge encountered an error",
-                    "color": 15158332,  # Red
+                    "color": 15158332,
                     "fields": [
-                        {
-                            "name": "Error",
-                            "value": error_message or "Unknown error",
-                            "inline": False
-                        },
-                        {
-                            "name": "Job ID",
-                            "value": job_id or "N/A",
-                            "inline": True
-                        }
+                        {"name": "Error", "value": error_message or "Unknown error", "inline": False},
+                        {"name": "Job ID", "value": job_id or "N/A", "inline": True}
                     ],
                     "timestamp": datetime.now().isoformat(),
-                    "footer": {"text": "EPG Merge v0.4.8"}
+                    "footer": {"text": "EPG Merge v0.4.9"}
                 }
             
-            payload = {
-                "content": "🎬 **EPG Merge Notification**",
-                "embeds": [embed]
-            }
+            payload = {"content": "🎬 **EPG Merge Notification**", "embeds": [embed]}
             
             async with httpx.AsyncClient(timeout=10) as client:
                 response = await client.post(webhook_url, json=payload)
-                
                 if response.status_code in [200, 204]:
                     self.logger.info("✅ Discord notification sent")
                 else:
@@ -699,28 +682,25 @@ class ScheduledJobService:
             self.logger.error(f"Error sending Discord notification: {e}")
     
     def get_next_run_time(self) -> Optional[str]:
-        """Calculate next scheduled run time based on cron expression"""
+        """Calculate next scheduled run time"""
         try:
             settings = self.settings_service.get_all()
             merge_time = settings.get('merge_time', '00:00')
             merge_schedule = settings.get('merge_schedule', 'daily')
             merge_days = settings.get('merge_days', '[]')
             
-            # Parse time
             hours, minutes = merge_time.split(':')
             
-            # Build cron expression
             if merge_schedule == 'daily':
                 cron_expr = f"{minutes} {hours} * * *"
-            else:  # weekly
+            else:
                 try:
                     days = json.loads(merge_days) if isinstance(merge_days, str) else merge_days
                     days_str = ','.join(str(int(d)) for d in days)
-                except (json.JSONDecodeError, TypeError, ValueError):
+                except:
                     days_str = "0,1,2,3,4,5,6"
                 cron_expr = f"{minutes} {hours} * * {days_str}"
             
-            # Calculate next run
             cron = croniter(cron_expr, datetime.now())
             next_run = cron.get_next(datetime)
             

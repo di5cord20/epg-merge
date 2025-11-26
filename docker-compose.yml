@@ -1,48 +1,56 @@
 services:
   # Backend API Service
   backend:
+    # image: ${DOCKER_USERNAME:-yourusername}/epg-merge-backend:${VERSION:-latest}
     build:
       context: .
       dockerfile: backend/Dockerfile
     container_name: epg-merge-backend
     ports:
-      - "9193:9193"
+      - "${BACKEND_PORT:-9193}:9193"
     environment:
       - ENVIRONMENT=production
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=INFO
-      - DATA_DIR=/data
-      - CONFIG_DIR=/config
-      - TZ=America/Toronto
+      - DATA_DIR=${DATA_DIR:-/data}
+      - CONFIG_DIR=${CONFIG_DIR:-/config}
+      - TMP_DIR=${TMP_DIR:-/data/tmp}
+      - CURRENT_DIR=${CURRENT_DIR:-/data/current}
+      - ARCHIVE_DIR=${ARCHIVE_DIR:-/data/archives}
+      - CHANNELS_DIR=${CHANNELS_DIR:-/data/channels}
+      - CACHE_DIR=${CACHE_DIR:-/data/epg_cache}
+      - SERVICE_PORT=9193
+      - TZ=${TZ:-America/Toronto}
     volumes:
-      # Data directory for temporary merges and archives
+      # Data directory for epgs, channels, and cache
       - ./data:/data
-      # Config directory for database and cache
+      # Config directory for database
       - ./config:/config
     networks:
       - epg-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9193/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 15s
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:9193/api/health"]
+    #   interval: 30s
+    #   timeout: 30s
+    #   retries: 3
+    #   start_period: 60s
     restart: unless-stopped
     labels:
       - "com.epg-merge.service=backend"
 
   # Frontend Web Service
   frontend:
+    # image: ${DOCKER_USERNAME:-yourusername}/epg-merge-frontend:${VERSION:-latest}
     build:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        REACT_APP_API_BASE: http://backend:9193
+        REACT_APP_API_BASE: ${REACT_APP_API_BASE:-http://localhost:${BACKEND_PORT:-9193}}
     container_name: epg-merge-frontend
     ports:
-      - "80:80"
+      - "${FRONTEND_PORT:-80}:80"
     environment:
-      - REACT_APP_API_BASE=http://backend:9193
+      - REACT_APP_API_BASE=${REACT_APP_API_BASE:-http://localhost:${BACKEND_PORT:-9193}}
       - NGINX_HOST=localhost
       - NGINX_PORT=80
     depends_on:

@@ -1,5 +1,5 @@
 # Git
-.git
+.git/
 .gitignore
 .gitattributes
 
@@ -45,6 +45,7 @@ pip-delete-this-directory.txt
 *.swo
 *~
 .DS_Store
+.env
 .env.local
 .env.*.local
 

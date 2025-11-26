@@ -4,6 +4,7 @@ Modular, maintainable architecture with proper separation of concerns
 """
 
 import asyncio
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,15 +33,67 @@ from version import get_version
 # Initialize configuration
 config = Config()
 
-# Initialize FastAPI app with version from backend/version.py
+# Initialize logging
+logger = setup_logging(__name__)
+
+# ============================================================================
+# INITIALIZE SERVICES (before FastAPI app)
+# ============================================================================
+
+db = Database(config.db_path)
+source_service = SourceService(config)
+channel_service = ChannelService(config, db)
+merge_service = MergeService(config, db)
+archive_service = ArchiveService(config, db)
+settings_service = SettingsService(db)
+job_service = ScheduledJobService(
+    config, db, merge_service, channel_service,
+    source_service, settings_service
+)
+
+# ============================================================================
+# LIFESPAN CONTEXT MANAGER (replaces @app.on_event)
+# ============================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager - handles startup and shutdown"""
+    
+    # ===== STARTUP =====
+    logger.info("🚀 Starting EPG Merge Application")
+    db.initialize()
+    logger.info("✅ Database initialized")
+
+    job_service.init_job_history_table()
+    logger.info("✅ Job history initialized")
+
+    # Start scheduler (it creates its own background task)
+    logger.info("⏱️ Starting scheduled merge scheduler...")
+    job_service.start_scheduler()
+    logger.info("✅ Scheduler started - will run merges based on settings")
+
+    logger.info(f"📁 Config: {config.config_dir}")
+    logger.info(f"📦 Archives: {config.archive_dir}")
+    logger.info(f"💾 Cache: {config.cache_dir}")
+    
+    yield  # Application runs here
+    
+    # ===== SHUTDOWN =====
+    logger.info("🛑 Shutting down EPG Merge Application")
+    job_service.stop_scheduler()
+    db.close()
+
+
+# ============================================================================
+# CREATE FASTAPI APP WITH LIFESPAN
+# ============================================================================
+
 app = FastAPI(
     title="EPG Merge API",
     description="TV feed merger with channel filtering",
-    version=get_version()
+    version=get_version(),
+    lifespan=lifespan  # Use the new lifespan context manager
 )
-
-# Initialize logging
-logger = setup_logging(__name__)
 
 # ============================================================================
 # MIDDLEWARE & STATIC FILES
@@ -59,21 +112,6 @@ app.add_middleware(
 static_path = Path(__file__).parent / "static"
 if static_path.exists():
     app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
-
-# ============================================================================
-# INITIALIZE SERVICES
-# ============================================================================
-
-db = Database(config.db_path)
-source_service = SourceService(config)
-channel_service = ChannelService(config, db)
-merge_service = MergeService(config, db)
-archive_service = ArchiveService(config, db)
-settings_service = SettingsService(db)
-job_service = ScheduledJobService(
-    config, db, merge_service, channel_service,
-    source_service, settings_service
-)
 
 # ============================================================================
 # REGISTER ROUTERS
@@ -108,7 +146,7 @@ jobs.init_jobs_routes(job_service)
 app.include_router(jobs.router)
 
 # ============================================================================
-# ROOT & LIFECYCLE
+# ROOT ROUTE
 # ============================================================================
 
 @app.get("/")
@@ -119,35 +157,6 @@ async def root():
         with open(static_index) as f:
             return HTMLResponse(f.read())
     return HTMLResponse("<h1>EPG Merge App</h1><p>Frontend loading...</p>")
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize application on startup"""
-    logger.info("🚀 Starting EPG Merge Application")
-    db.initialize()
-    logger.info("✅ Database initialized")
-
-    job_service.init_job_history_table()
-    logger.info("✅ Job history initialized")
-
-    # NEW: Start the cron scheduler
-    logger.info("⏱️ Starting scheduled merge scheduler...")
-    asyncio.create_task(job_service.start_scheduler())
-    logger.info("✅ Scheduler started - will run merges based on settings")
-
-    logger.info(f"📁 Config: {config.config_dir}")
-    logger.info(f"📦 Archives: {config.archive_dir}")
-    logger.info(f"💾 Cache: {config.cache_dir}")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown"""
-    logger.info("🛑 Shutting down EPG Merge Application")
-    job_service.stop_scheduler()
-    db.close()
-
 
 # ============================================================================
 # ERROR HANDLERS
@@ -168,6 +177,10 @@ async def global_exception_handler(request, exc):
     from fastapi import HTTPException
     raise HTTPException(status_code=500, detail="Internal server error")
 
+
+# ============================================================================
+# ENTRY POINT
+# ============================================================================
 
 if __name__ == "__main__":
     import uvicorn

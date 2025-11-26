@@ -1,9 +1,10 @@
 """
-Scheduled job execution and monitoring endpoints (v0.4.7)
-Added: /api/jobs/execute-now, /api/jobs/clear-history
+Scheduled job execution and monitoring endpoints (v0.4.9)
+Added: /api/jobs/execute-now, /api/jobs/cancel, /api/jobs/clear-history
 """
 
 from fastapi import APIRouter, HTTPException
+from datetime import datetime
 from utils.logger import setup_logging
 
 logger = setup_logging(__name__)
@@ -110,7 +111,10 @@ def init_jobs_routes(job_service):
 
     @router.post("/api/jobs/cancel")
     async def cancel_running_job():
-        """Cancel currently running scheduled merge job
+        """Force cancel currently running scheduled merge job
+        
+        WARNING: This will forcefully terminate the merge process.
+        May result in incomplete or corrupted output.
         
         Returns:
             Cancellation status
@@ -125,12 +129,19 @@ def init_jobs_routes(job_service):
                     "message": "No job currently running"
                 }
             
-            logger.warning("Cancelling running job")
+            logger.warning("⚠️ Forcefully cancelling running job")
+            
+            # Cancel the task
             job_service.current_job_task.cancel()
+            
+            # Reset the running flags so scheduler can continue
+            job_service.is_job_running = False
+            job_service.current_job_task = None
             
             return {
                 "status": "cancelled",
-                "message": "Job cancellation requested"
+                "message": "Job forcefully terminated, scheduler can now run next merge",
+                "timestamp": datetime.now().isoformat()
             }
         except Exception as e:
             logger.error(f"Error cancelling job: {e}")

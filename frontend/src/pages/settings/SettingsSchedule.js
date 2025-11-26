@@ -1,12 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Save } from 'lucide-react';
+import { Save, ChevronDown } from 'lucide-react';
 import { useApi } from '../../hooks/useApi';
 
 /**
- * SettingsSchedule Component - v0.4.8
- * Manages merge schedule, timeframe, and channels selection
+ * SettingsSchedule Component - v0.5.0
+ * Manages merge schedule, timeframe, source/channels selection
  */
-export const SettingsSchedule = ({ settings, onSettingChange, cronExpression, timezone, savedPanel, onSave }) => {
+export const SettingsSchedule = ({
+  settings,
+  onSettingChange,
+  sourceVersions,
+  selectedSourceVersion,
+  selectedSourceDetails,
+  onSourceVersionChange,
+  cronExpression,
+  timezone,
+  savedPanel,
+  onSave
+}) => {
   const [channelVersions, setChannelVersions] = useState([]);
   const { call } = useApi();
 
@@ -91,7 +102,15 @@ export const SettingsSchedule = ({ settings, onSettingChange, cronExpression, ti
     paddingRight: '30px',
     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23e2e8f0' d='M1 1l5 5 5-5'/%3E%3C/svg%3E")`,
     backgroundRepeat: 'no-repeat',
-    backgroundPosition: 'right 8px center'
+    backgroundPosition: 'right 8px center',
+    color: '#e2e8f0',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    colorScheme: 'dark'
+  };
+
+  const selectOptionStyle = {
+    color: '#e2e8f0',
+    backgroundColor: '#1e293b'
   };
 
   const helperTextStyle = {
@@ -214,25 +233,105 @@ export const SettingsSchedule = ({ settings, onSettingChange, cronExpression, ti
         </div>
       </div>
 
-      {/* Channels Version Selection */}
+      {/* ===== SOURCE CONFIGURATION SELECTION ===== */}
+      <div style={sectionStyle}>
+        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
+          Source Configuration for Scheduled Merge
+        </label>
+        <div style={{ position: 'relative', marginBottom: '8px' }}>
+          <select
+            style={selectFieldStyle}
+            value={selectedSourceVersion || ''}
+            onChange={(e) => onSourceVersionChange(e.target.value)}
+          >
+            <option value="">No source versions saved</option>
+            {Array.isArray(sourceVersions) && sourceVersions.length > 0 && sourceVersions.map(version => (
+              <option
+                key={version?.filename || 'unknown'}
+                value={version?.filename || ''}
+                style={selectOptionStyle}
+              >
+                {version?.filename === 'sources.json' 
+                  ? `${version.filename} (Current)` 
+                  : (version?.filename || '').replace('sources.json.', '')} ({version?.sources?.length || 0} sources)
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={helperTextStyle}>
+          Which saved sources to use for automated merge
+        </div>
+
+        {/* Show selected source details */}
+        {selectedSourceDetails && selectedSourceVersion && (
+          <div style={{
+            marginTop: '12px',
+            padding: '12px',
+            background: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '6px',
+            fontSize: '12px'
+          }}>
+            {selectedSourceDetails?.saved_at && (
+              <div style={{ marginBottom: '8px', color: '#94a3b8' }}>
+                <strong style={{ color: '#60a5fa' }}>Saved:</strong> {selectedSourceDetails.saved_at}
+              </div>
+            )}
+            {selectedSourceDetails?.feed_type && (
+              <div style={{ marginBottom: '8px', color: '#94a3b8' }}>
+                <strong style={{ color: '#60a5fa' }}>Feed Type:</strong> {selectedSourceDetails.feed_type.toUpperCase()}
+              </div>
+            )}
+            {selectedSourceDetails?.timeframe && (
+              <div style={{ marginBottom: '8px', color: '#94a3b8' }}>
+                <strong style={{ color: '#60a5fa' }}>Timeframe:</strong> {selectedSourceDetails.timeframe} days
+              </div>
+            )}
+            <div style={{ color: '#94a3b8' }}>
+              <strong style={{ color: '#60a5fa' }}>Sources Included ({Array.isArray(selectedSourceDetails?.sources) ? selectedSourceDetails.sources.length : 0}):</strong>
+              <div style={{
+                marginTop: '6px',
+                paddingLeft: '12px',
+                maxHeight: '120px',
+                overflowY: 'auto'
+              }}>
+                {Array.isArray(selectedSourceDetails?.sources) && selectedSourceDetails.sources.length > 0 ? (
+                  selectedSourceDetails.sources.map((src, idx) => (
+                    <div key={idx} style={{ fontSize: '11px', color: '#cbd5e1', marginBottom: '2px' }}>
+                      • {src}
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ fontSize: '11px', color: '#cbd5e1' }}>
+                    No sources found
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ===== CHANNELS VERSION SELECTION ===== */}
       <div style={sectionStyle}>
         <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
           Channels JSON Version for Scheduled Merge
         </label>
         <select
           style={selectFieldStyle}
-          value={settings.merge_channels_version}
+          value={settings?.merge_channels_version || ''}
           onChange={(e) => onSettingChange('merge_channels_version', e.target.value)}
         >
-          {channelVersions.length === 0 ? (
-            <option value="">No channel versions saved</option>
-          ) : (
-            channelVersions.map(version => (
-              <option key={version.filename} value={version.filename}>
-                {version.is_current ? `${version.filename} (Current)` : version.filename}
-              </option>
-            ))
-          )}
+          <option value="">No channel versions saved</option>
+          {Array.isArray(channelVersions) && channelVersions.length > 0 && channelVersions.map(version => (
+            <option
+              key={version?.filename || 'unknown'}
+              value={version?.filename || ''}
+              style={selectOptionStyle}
+            >
+              {version?.is_current ? `${version.filename} (Current)` : version?.filename || ''} ({version?.channels?.length || 0} channels)
+            </option>
+          ))}
         </select>
         <div style={helperTextStyle}>
           Which saved channels to filter with during merge

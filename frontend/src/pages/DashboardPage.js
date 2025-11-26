@@ -15,6 +15,7 @@ export const DashboardPage = () => {
   const [success, setSuccess] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [clearingHistory, setClearingHistory] = useState(false);
+  const [cancellingJob, setCancellingJob] = useState(false);
   const { call } = useApi();
 
   // =========================================================================
@@ -69,6 +70,36 @@ export const DashboardPage = () => {
       setError('Failed to clear history: ' + err.message);
     } finally {
       setClearingHistory(false);
+    }
+  };
+
+  const handleCancelJob = async () => {
+  if (!window.confirm('⚠️ This will forcefully terminate the running merge job. Continue?')) {
+    return;
+  }
+
+  setCancellingJob(true);
+    try {
+      const response = await fetch('/api/jobs/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = await response.json();
+
+      if (data.status === 'cancelled') {
+        alert('✅ Job cancelled successfully. Scheduler can now run the next merge.');
+        await refreshData(); // Refresh to update status
+      } else if (data.status === 'no_job') {
+        alert('ℹ️ No job currently running');
+      } else {
+        alert(`Error: ${data.message}`);
+      }
+    } catch (error) {
+      console.error('Error cancelling job:', error);
+      alert('❌ Failed to cancel job. Check console for details.');
+    } finally {
+      setCancellingJob(false);
     }
   };
 
@@ -297,6 +328,21 @@ export const DashboardPage = () => {
           <Trash2 size={16} /> {clearingHistory ? 'Clearing...' : 'Clear History'}
         </button>
 
+        <button
+          onClick={handleCancelJob}
+          disabled={cancellingJob || !status?.is_running}
+          style={{
+            ...buttonStyle,
+            background: cancellingJob || !status?.is_running ? '#6b7280' : '#f97316',
+            cursor: cancellingJob || !status?.is_running ? 'not-allowed' : 'pointer'
+          }}
+          onMouseEnter={(e) => !(cancellingJob || !status?.is_running) && (e.target.style.background = '#ea580c')}
+          onMouseLeave={(e) => !(cancellingJob || !status?.is_running) && (e.target.style.background = '#f97316')}
+          title={!status?.is_running ? 'No job currently running' : 'Force cancel the running merge job'}
+        >
+          <AlertCircle size={16} /> {cancellingJob ? 'Cancelling...' : 'Cancel Job'}
+        </button>
+
         {/* Auto-refresh toggle */}
         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginLeft: 'auto' }}>
           <input
@@ -410,21 +456,22 @@ export const DashboardPage = () => {
           <table style={tableStyle}>
             <thead>
               <tr>
-                <th style={thStyle}>Job ID</th>
+                {/* <th style={thStyle}>Job ID</th> */}
                 <th style={thStyle}>Status</th>
                 <th style={thStyle}>Started</th>
                 <th style={thStyle}>Duration</th>
                 <th style={thStyle}>Channels</th>
                 <th style={thStyle}>Programs</th>
+                <th style={thStyle}>Days Included</th>
                 <th style={thStyle}>Memory</th>
               </tr>
             </thead>
             <tbody>
               {history.map((job) => (
                 <tr key={job.job_id} style={{ background: 'rgba(255, 255, 255, 0.02)' }}>
-                  <td style={tdStyle}>
+                  {/* <td style={tdStyle}>
                     <code style={{ fontSize: '12px', color: '#60a5fa' }}>{job.job_id.substring(0, 20)}...</code>
-                  </td>
+                  </td> */}
                   <td style={{ ...tdStyle, color: getStatusColor(job.status), fontWeight: '600' }}>
                     {job.status.toUpperCase()}
                   </td>
@@ -432,6 +479,7 @@ export const DashboardPage = () => {
                   <td style={tdStyle}>{formatDuration(job.execution_time_seconds)}</td>
                   <td style={tdStyle}>{job.channels_included || '—'}</td>
                   <td style={tdStyle}>{job.programs_included || '—'}</td>
+                  <td style={tdStyle}>{job.days_included || '—'}</td>
                   <td style={tdStyle}>{job.peak_memory_mb ? `${job.peak_memory_mb.toFixed(1)}MB` : '—'}</td>
                 </tr>
               ))}

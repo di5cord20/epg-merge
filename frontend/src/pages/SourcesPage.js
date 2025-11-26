@@ -4,7 +4,6 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import { DualListSelector } from '../components/DualListSelector';
 
 export const SourcesPage = ({ onSave }) => {
-  // Persist timeframe and feedType to localStorage
   const [timeframe, setTimeframe] = useLocalStorage('selectedTimeframe', '3');
   const [feedType, setFeedType] = useLocalStorage('selectedFeedType', 'iptv');
   const [selectedSources, setSelectedSources] = useLocalStorage('selectedSources', []);
@@ -12,12 +11,10 @@ export const SourcesPage = ({ onSave }) => {
   const [availableSources, setAvailableSources] = useState([]);
   const { call, loading, error } = useApi();
   
-  // Notify parent component of selected sources
   useEffect(() => {
     onSave(selectedSources);
   }, [selectedSources, onSave]);
   
-  // Load sources whenever timeframe or feedType changes
   const loadSources = useCallback(async () => {
     try {
       const data = await call(
@@ -29,28 +26,38 @@ export const SourcesPage = ({ onSave }) => {
     }
   }, [timeframe, feedType, call]);
   
-  // Load sources on component mount and when timeframe/feedType changes
   useEffect(() => {
     loadSources();
   }, [loadSources]);
   
   const saveSources = async () => {
+    if (selectedSources.length === 0) {
+      alert('Please select at least one source');
+      return;
+    }
+
     try {
-      await call('/api/sources/select', {
+      // Save to backend with versioning (like channels)
+      const data = await call('/api/sources/save', {
         method: 'POST',
-        body: JSON.stringify({ sources: selectedSources })
+        body: JSON.stringify({ 
+          sources: selectedSources,
+          timeframe: timeframe,
+          feed_type: feedType
+        })
       });
       
-      // Also save timeframe and feedType to backend settings
+      // Also save to settings for automated merge
       await call('/api/settings/set', {
         method: 'POST',
         body: JSON.stringify({
+          selected_sources: selectedSources,
           selected_timeframe: timeframe,
           selected_feed_type: feedType
         })
       });
       
-      alert('Sources and preferences saved');
+      alert(`✅ Sources saved!\n${selectedSources.length} source(s) selected\nVersion: ${data.version || 'current'}`);
     } catch (err) {
       alert('Error saving sources: ' + err.message);
     }
@@ -144,10 +151,10 @@ export const SourcesPage = ({ onSave }) => {
         
         <div className="button-group">
           <button 
-            className="btn btn-primary btn-lg"
-            onClick={() => setSelectedSources(['FullGuide.xml.gz'])}
+            className="btn btn-secondary btn-lg"
+            onClick={() => setSelectedSources(availableSources)}
           >
-            Select All (FullGuide)
+            Select All
           </button>
           <button 
             className="btn btn-secondary btn-lg"
@@ -158,8 +165,9 @@ export const SourcesPage = ({ onSave }) => {
           <button 
             className="btn btn-success btn-lg"
             onClick={saveSources}
+            disabled={selectedSources.length === 0}
           >
-            💾 Save Sources
+            💾 Save Sources ({selectedSources.length})
           </button>
         </div>
 
@@ -176,8 +184,14 @@ export const SourcesPage = ({ onSave }) => {
           <strong style={{ color: '#cbd5e1' }}>Current Preferences:</strong>
           <div style={{ marginTop: '6px' }}>
             Timeframe: <strong style={{ color: '#60a5fa' }}>{timeframe} days</strong> | 
-            Feed Type: <strong style={{ color: '#60a5fa' }}>{feedType.toUpperCase()}</strong>
+            Feed Type: <strong style={{ color: '#60a5fa' }}>{feedType.toUpperCase()}</strong> | 
+            Selected: <strong style={{ color: '#60a5fa' }}>{selectedSources.length} source(s)</strong>
           </div>
+          {selectedSources.length > 0 && (
+            <div style={{ marginTop: '8px', fontSize: '11px', color: '#64748b' }}>
+              <strong>Sources:</strong> {selectedSources.join(', ')}
+            </div>
+          )}
         </div>
       </div>
     </div>

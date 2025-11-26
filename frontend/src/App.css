@@ -71,10 +71,12 @@ h3 { font-size: 18px; font-weight: 600; margin-bottom: 15px; color: #cbd5e1; }
 .config-group { display: flex; flex-direction: column; }
 .config-group label { font-weight: 600; margin-bottom: 10px; color: #e2e8f0; }
 
+
 .input-field, select {
   padding: 12px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px;
   background: rgba(255, 255, 255, 0.05); color: inherit; font-size: 14px;
   transition: all 0.2s;
+  color-scheme: dark;
 }
 
 .input-field:focus, select:focus {
@@ -82,6 +84,17 @@ h3 { font-size: 18px; font-weight: 600; margin-bottom: 15px; color: #cbd5e1; }
   border-color: #3b82f6;
   background: rgba(59, 130, 246, 0.1);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+select option {
+  background-color: #1e293b;
+  color: #e2e8f0;
+}
+
+select option:checked {
+  background: linear-gradient(#3b82f6, #3b82f6);
+  background-color: #3b82f6;
+  color: #ffffff;
 }
 
 .radio-group { display: flex; gap: 20px; flex-wrap: wrap; }
