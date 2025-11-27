@@ -571,9 +571,11 @@ export const SettingsPage = ({ jobStatus }) => {
 function getDefaultSettings() {
   return {
     output_filename: 'merged.xml.gz',
+    sources_filename: 'sources.json',
     channels_filename: 'channels.json',
     current_dir: '/data/current',
     archive_dir: '/data/archives',
+    sources_dir: '/data/sources',
     channels_dir: '/data/channels',
     merge_schedule: 'daily',
     merge_time: '00:00',

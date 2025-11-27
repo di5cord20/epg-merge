@@ -33,6 +33,10 @@ class Config:
             os.getenv("CHANNELS_DIR", str(self.data_dir / "channels")),
             "CHANNELS_DIR"
         )
+        self.sources_dir = self._validate_absolute_path(
+            os.getenv("SOURCES_DIR", str(self.data_dir / "sources")),
+            "SOURCES_DIR"
+        )
         
         # Config and cache
         default_config_dir = "/config" if self.environment == "production" else str(Path(__file__).parent.parent / "config")
@@ -96,6 +100,7 @@ class Config:
             self.current_dir,
             self.archive_dir,
             self.channels_dir,
+            self.sources_dir,
             self.config_dir,
             self.cache_dir
         ]:
@@ -110,6 +115,7 @@ class Config:
             "current_dir": str(self.current_dir),
             "archive_dir": str(self.archive_dir),
             "channels_dir": str(self.channels_dir),
+            "sources_dir": str(self.channels_dir),
             "config_dir": str(self.config_dir),
             "cache_dir": str(self.cache_dir),
             "db_path": str(self.db_path),

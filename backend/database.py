@@ -77,6 +77,16 @@ class Database:
                     size_bytes INTEGER
                 )
             ''')
+
+            # Sources versions table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS source_versions (
+                    filename TEXT PRIMARY KEY,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    sources_count INTEGER,
+                    size_bytes INTEGER
+                )
+            ''')
             
             # Job history table - scheduled merge execution records
             cursor.execute('''
@@ -434,3 +444,103 @@ class Database:
             self._connection.close()
             self._connection = None
             self.logger.info("Database connection closed")
+
+    def save_source_version(self, filename: str, sources_count: int, size_bytes: int) -> bool:
+        """Save source version metadata
+        
+        Args:
+            filename: Source version filename
+            sources_count: Number of sources in this version
+            size_bytes: File size in bytes
+        
+        Returns:
+            True if successful
+        """
+        try:
+            self.cursor.execute(
+                """
+                INSERT OR REPLACE INTO source_versions 
+                (filename, sources_count, size_bytes, created_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (filename, sources_count, size_bytes)
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            self.logger.error(f"Error saving source version metadata: {e}")
+            return False
+
+
+    def get_source_version(self, filename: str) -> Dict[str, Any]:
+        """Get source version metadata
+        
+        Args:
+            filename: Source version filename
+        
+        Returns:
+            Dictionary with metadata or None if not found
+        """
+        try:
+            self.cursor.execute(
+                "SELECT filename, created_at, sources_count, size_bytes FROM source_versions WHERE filename = ?",
+                (filename,)
+            )
+            row = self.cursor.fetchone()
+            if row:
+                return {
+                    "filename": row[0],
+                    "created_at": row[1],
+                    "sources_count": row[2],
+                    "size_bytes": row[3]
+                }
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting source version: {e}")
+            return None
+
+
+    def get_all_source_versions(self) -> List[Dict[str, Any]]:
+        """Get all source versions
+        
+        Returns:
+            List of source version metadata dictionaries
+        """
+        try:
+            self.cursor.execute(
+                "SELECT filename, created_at, sources_count, size_bytes FROM source_versions ORDER BY created_at DESC"
+            )
+            rows = self.cursor.fetchall()
+            return [
+                {
+                    "filename": row[0],
+                    "created_at": row[1],
+                    "sources_count": row[2],
+                    "size_bytes": row[3]
+                }
+                for row in rows
+            ]
+        except Exception as e:
+            self.logger.error(f"Error getting all source versions: {e}")
+            return []
+
+
+    def delete_source_version(self, filename: str) -> bool:
+        """Delete source version metadata
+        
+        Args:
+            filename: Source version filename
+        
+        Returns:
+            True if successful
+        """
+        try:
+            self.cursor.execute(
+                "DELETE FROM source_versions WHERE filename = ?",
+                (filename,)
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            self.logger.error(f"Error deleting source version: {e}")
+            return False

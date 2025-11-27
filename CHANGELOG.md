@@ -4,6 +4,102 @@ All notable changes to the EPG Merge Application are documented in this file.
 
 ---
 
+## [0.5.0] - 2025-11-26
+
+### Added
+- **SaveDialog Component** - New reusable modal for saving sources/channels with 3 modes:
+  - Use Fallback Default (from settings)
+  - Use Custom Name (user-specified filename)
+  - Overwrite Existing (select from saved versions dropdown)
+- **Source Versioning** - Parallel to channel versioning:
+  - Save sources with custom filenames
+  - Auto-archive previous versions with timestamps
+  - Track metadata (source count, file size, creation date)
+  - Database table: `source_versions`
+- **Load from Disk (Sources)** - New feature:
+  - "Load from Disk" button on Sources page
+  - Modal shows all saved source versions
+  - Displays source count and creation timestamp
+  - Click to load into selector
+- **Settings Expansion** - New configuration keys:
+  - `sources_filename` - Fallback default filename (default: "sources.json")
+  - `sources_dir` - Directory for source storage (default: "/data/sources")
+- **API Endpoints**:
+  - `GET /api/sources/versions` - List all saved source versions with metadata
+  - `POST /api/sources/load-from-disk` - Load specific source version from disk
+
+### Changed
+- **SourcesPage.js** - Integrated SaveDialog for custom filename selection
+- **ChannelsPage.js** - Updated to use SaveDialog for consistency
+- **SettingsOutput.js** - Added sources settings fields
+- **source_service.py** - Complete rewrite:
+  - `fetch_sources()` - Fetch available sources (renamed method)
+  - `save_selected_sources()` - Save with optional custom filename
+  - `get_source_versions()` - List all saved versions with metadata
+  - `load_sources_from_disk()` - Load specific version from disk
+- **channel_service.py**:
+  - `save_selected_channels()` - Now accepts optional `filename` parameter
+- **settings_service.py** - Added:
+  - `get_setting()` - Core getter method with defaults
+  - `get_sources_filename()` - Get configured sources default
+  - `get_channels_filename()` - Get configured channels default
+  - Validation methods for all settings
+- **channels.py router** - `/api/channels/save` now passes `filename` parameter
+- **sources.py router** - `/api/sources/list` fixed to handle list directly
+
+### Fixed
+- SourceService initialization now properly sets `self.db`
+- Missing imports in source_service.py (json, shutil, Path, datetime)
+- SettingsService `get_setting()` method for proper defaults
+- Channels save endpoint now retains custom filenames
+
+### Database Changes
+- New table: `source_versions` (filename, created_at, sources_count, size_bytes)
+- New methods:
+  - `save_source_version()` - Save version metadata
+  - `get_source_version()` - Retrieve version metadata
+  - `get_all_source_versions()` - List all versions
+  - `delete_source_version()` - Delete version metadata
+
+### Migration Required
+- None - auto-migration on first run
+- `source_versions` table created automatically
+- New settings initialized with defaults
+
+### Known Issues
+- ⚠️ Sources settings (`sources_filename`, `sources_dir`) fields display but don't persist in SettingsOutput.js panel
+  - Workaround: Uses defaults (/data/sources, sources.json)
+  - Planned fix: v0.5.1
+
+### Testing
+- ✅ Save sources with default/custom names
+- ✅ Save channels with custom names
+- ✅ Saved versions appear in dropdowns with counts
+- ✅ Load from Disk works for sources
+- ✅ Version archives created with timestamps
+- ✅ Metadata tracked in database
+- ✅ Settings persist (except sources settings)
+
+### Files Modified
+```
+frontend/
+├── src/components/SaveDialog.js (NEW)
+├── src/pages/settings/SettingsOutput.js
+├── src/pages/SourcesPage.js
+└── src/pages/ChannelsPage.js
+
+backend/
+├── services/source_service.py
+├── services/channel_service.py
+├── services/settings_service.py
+├── routers/sources.py
+├── routers/channels.py
+├── database.py
+└── config.py
+```
+
+---
+
 ## [0.4.9] - 2025-11-26
 
 ### Added

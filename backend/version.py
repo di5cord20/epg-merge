@@ -4,16 +4,16 @@ SINGLE SOURCE OF TRUTH - Update this file only
 All other files auto-sync during build/deployment
 """
 
-__version__ = "0.4.9"
-__release_date__ = "2025-11-25"
+__version__ = "0.5.0"
+__release_date__ = "2025-11-26"
 __author__ = "di5cord20"
 __license__ = "MIT"
 __description__ = "TV feed merger with simplified persistence and streamlined services"
 
 # Semantic versioning components
 VERSION_MAJOR = 0
-VERSION_MINOR = 4
-VERSION_PATCH = 9
+VERSION_MINOR = 5
+VERSION_PATCH = 0
 
 
 def get_version():

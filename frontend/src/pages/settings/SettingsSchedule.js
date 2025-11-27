@@ -5,6 +5,7 @@ import { useApi } from '../../hooks/useApi';
 /**
  * SettingsSchedule Component - v0.5.0
  * Manages merge schedule, timeframe, source/channels selection
+ * UPDATED: Source/Channels dropdowns now 50/50 side-by-side layout
  */
 export const SettingsSchedule = ({
   settings,
@@ -81,6 +82,21 @@ export const SettingsSchedule = ({
     gridTemplateColumns: '1fr 1fr',
     gap: '25px',
     marginBottom: '20px'
+  };
+
+  // NEW: 50/50 layout for source/channels dropdowns
+  const dropdownRowStyle = {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '25px',
+    marginBottom: '25px'
+  };
+
+  const dropdownColumnStyle = {
+    padding: '20px',
+    background: 'rgba(255, 255, 255, 0.03)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '8px'
   };
 
   const inputFieldStyle = {
@@ -233,108 +249,107 @@ export const SettingsSchedule = ({
         </div>
       </div>
 
-      {/* ===== SOURCE CONFIGURATION SELECTION ===== */}
-      <div style={sectionStyle}>
-        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
-          Sources to use for Scheduled Merge
-        </label>
-        <div style={{ position: 'relative', marginBottom: '8px' }}>
+      {/* ===== NEW: 50/50 SOURCE & CHANNELS DROPDOWNS ===== */}
+      <div style={dropdownRowStyle}>
+        
+        {/* SOURCE CONFIGURATION SELECTION - 50% WIDTH */}
+        <div style={dropdownColumnStyle}>
+          <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
+            Sources to Use
+          </label>
+          <div style={{ position: 'relative', marginBottom: '8px' }}>
+            <select
+              style={selectFieldStyle}
+              value={selectedSourceVersion || ''}
+              onChange={(e) => onSourceVersionChange(e.target.value)}
+            >
+              <option value="">No source versions saved</option>
+              {Array.isArray(sourceVersions) && sourceVersions.length > 0 && sourceVersions.map(version => (
+                <option
+                  key={version?.filename || 'unknown'}
+                  value={version?.filename || ''}
+                  style={selectOptionStyle}
+                >
+                  {version?.filename === 'sources.json' 
+                    ? `${version.filename} (Current)` 
+                    : (version?.filename || '').replace('sources.json.', '')} ({version?.sources?.length || 0} sources)
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={helperTextStyle}>
+            Which saved sources to use for automated merge
+          </div>
+
+          {/* Show selected source details */}
+          {selectedSourceDetails && selectedSourceVersion && (
+            <div style={{
+              marginTop: '12px',
+              padding: '12px',
+              background: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              borderRadius: '6px',
+              fontSize: '12px'
+            }}>
+              {selectedSourceDetails?.saved_at && (
+                <div style={{ marginBottom: '8px', color: '#94a3b8' }}>
+                  <strong style={{ color: '#60a5fa' }}>Saved:</strong> {selectedSourceDetails.saved_at}
+                </div>
+              )}
+              {selectedSourceDetails?.feed_type && (
+                <div style={{ marginBottom: '8px', color: '#94a3b8' }}>
+                  <strong style={{ color: '#60a5fa' }}>Feed Type:</strong> {selectedSourceDetails.feed_type.toUpperCase()}
+                </div>
+              )}
+              <div style={{ color: '#94a3b8' }}>
+                <strong style={{ color: '#60a5fa' }}>Sources Included ({Array.isArray(selectedSourceDetails?.sources) ? selectedSourceDetails.sources.length : 0}):</strong>
+                <div style={{
+                  marginTop: '6px',
+                  paddingLeft: '12px',
+                  maxHeight: '120px',
+                  overflowY: 'auto'
+                }}>
+                  {Array.isArray(selectedSourceDetails?.sources) && selectedSourceDetails.sources.length > 0 ? (
+                    selectedSourceDetails.sources.map((src, idx) => (
+                      <div key={idx} style={{ fontSize: '11px', color: '#cbd5e1', marginBottom: '2px' }}>
+                        • {src}
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ fontSize: '11px', color: '#cbd5e1' }}>
+                      No sources found
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* CHANNELS VERSION SELECTION - 50% WIDTH */}
+        <div style={dropdownColumnStyle}>
+          <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
+            Channels to Use
+          </label>
           <select
             style={selectFieldStyle}
-            value={selectedSourceVersion || ''}
-            onChange={(e) => onSourceVersionChange(e.target.value)}
+            value={settings?.merge_channels_version || ''}
+            onChange={(e) => onSettingChange('merge_channels_version', e.target.value)}
           >
-            <option value="">No source versions saved</option>
-            {Array.isArray(sourceVersions) && sourceVersions.length > 0 && sourceVersions.map(version => (
+            <option value="">No channel versions saved</option>
+            {Array.isArray(channelVersions) && channelVersions.length > 0 && channelVersions.map(version => (
               <option
                 key={version?.filename || 'unknown'}
                 value={version?.filename || ''}
                 style={selectOptionStyle}
               >
-                {version?.filename === 'sources.json' 
-                  ? `${version.filename} (Current)` 
-                  : (version?.filename || '').replace('sources.json.', '')} ({version?.sources?.length || 0} sources)
+                {version?.is_current ? `${version.filename} (Current)` : version?.filename || ''} ({version?.channels_count || 0} channels)
               </option>
             ))}
           </select>
-        </div>
-        <div style={helperTextStyle}>
-          Which saved sources to use for automated merge
-        </div>
-
-        {/* Show selected source details */}
-        {selectedSourceDetails && selectedSourceVersion && (
-          <div style={{
-            marginTop: '12px',
-            padding: '12px',
-            background: 'rgba(59, 130, 246, 0.1)',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
-            borderRadius: '6px',
-            fontSize: '12px'
-          }}>
-            {selectedSourceDetails?.saved_at && (
-              <div style={{ marginBottom: '8px', color: '#94a3b8' }}>
-                <strong style={{ color: '#60a5fa' }}>Saved:</strong> {selectedSourceDetails.saved_at}
-              </div>
-            )}
-            {selectedSourceDetails?.feed_type && (
-              <div style={{ marginBottom: '8px', color: '#94a3b8' }}>
-                <strong style={{ color: '#60a5fa' }}>Feed Type:</strong> {selectedSourceDetails.feed_type.toUpperCase()}
-              </div>
-            )}
-            {/* {selectedSourceDetails?.timeframe && (
-              <div style={{ marginBottom: '8px', color: '#94a3b8' }}>
-                <strong style={{ color: '#60a5fa' }}>Timeframe:</strong> {selectedSourceDetails.timeframe} days
-              </div>
-            )} */}
-            <div style={{ color: '#94a3b8' }}>
-              <strong style={{ color: '#60a5fa' }}>Sources Included ({Array.isArray(selectedSourceDetails?.sources) ? selectedSourceDetails.sources.length : 0}):</strong>
-              <div style={{
-                marginTop: '6px',
-                paddingLeft: '12px',
-                maxHeight: '120px',
-                overflowY: 'auto'
-              }}>
-                {Array.isArray(selectedSourceDetails?.sources) && selectedSourceDetails.sources.length > 0 ? (
-                  selectedSourceDetails.sources.map((src, idx) => (
-                    <div key={idx} style={{ fontSize: '11px', color: '#cbd5e1', marginBottom: '2px' }}>
-                      • {src}
-                    </div>
-                  ))
-                ) : (
-                  <div style={{ fontSize: '11px', color: '#cbd5e1' }}>
-                    No sources found
-                  </div>
-                )}
-              </div>
-            </div>
+          <div style={helperTextStyle}>
+            Which saved channels to filter with during merge
           </div>
-        )}
-      </div>
-
-      {/* ===== CHANNELS VERSION SELECTION ===== */}
-      <div style={sectionStyle}>
-        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
-          Channels to use for Scheduled Merge
-        </label>
-        <select
-          style={selectFieldStyle}
-          value={settings?.merge_channels_version || ''}
-          onChange={(e) => onSettingChange('merge_channels_version', e.target.value)}
-        >
-          <option value="">No channel versions saved</option>
-          {Array.isArray(channelVersions) && channelVersions.length > 0 && channelVersions.map(version => (
-            <option
-              key={version?.filename || 'unknown'}
-              value={version?.filename || ''}
-              style={selectOptionStyle}
-            >
-              {version?.is_current ? `${version.filename} (Current)` : version?.filename || ''} ({version?.channels?.length || 0} channels)
-            </option>
-          ))}
-        </select>
-        <div style={helperTextStyle}>
-          Which saved channels to filter with during merge
         </div>
       </div>
 

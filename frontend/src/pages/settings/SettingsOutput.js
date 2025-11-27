@@ -2,8 +2,9 @@ import React from 'react';
 import { Save } from 'lucide-react';
 
 /**
- * SettingsOutput Component - v0.4.8
+ * SettingsOutput Component - v0.5.0
  * Manages output filenames and directory paths
+ * UPDATED: Added sources_filename and sources_dir settings
  */
 export const SettingsOutput = ({ settings, onSettingChange, validationErrors, savedPanel, onSave }) => {
   const panelContainerStyle = {
@@ -116,10 +117,28 @@ export const SettingsOutput = ({ settings, onSettingChange, validationErrors, sa
         </div>
       </div>
 
+      {/* Sources JSON File (NEW v0.5.0) */}
+      <div style={sectionStyle}>
+        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
+          📦 Sources JSON File Name (Fallback Default)
+        </label>
+        <input
+          type="text"
+          style={validationErrors.sources_filename ? errorInputStyle : inputFieldStyle}
+          value={settings.sources_filename}
+          onChange={(e) => onSettingChange('sources_filename', e.target.value)}
+        />
+        <div style={validationErrors.sources_filename ? errorTextStyle : helperTextStyle}>
+          {validationErrors.sources_filename 
+            ? `❌ ${validationErrors.sources_filename}` 
+            : 'Used if no custom name provided when saving sources. You can override this on each save.'}
+        </div>
+      </div>
+
       {/* Channels JSON File */}
       <div style={sectionStyle}>
         <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
-          📦 Channels JSON File Name
+          📦 Channels JSON File Name (Fallback Default)
         </label>
         <input
           type="text"
@@ -130,7 +149,7 @@ export const SettingsOutput = ({ settings, onSettingChange, validationErrors, sa
         <div style={validationErrors.channels_filename ? errorTextStyle : helperTextStyle}>
           {validationErrors.channels_filename 
             ? `❌ ${validationErrors.channels_filename}` 
-            : 'Must end with .json'}
+            : 'Used if no custom name provided when saving channels. You can override this on each save.'}
         </div>
       </div>
 
@@ -167,6 +186,24 @@ export const SettingsOutput = ({ settings, onSettingChange, validationErrors, sa
           {validationErrors.archive_dir 
             ? `❌ ${validationErrors.archive_dir}` 
             : 'Where previous versions are stored with timestamps'}
+        </div>
+      </div>
+
+      {/* Sources Directory Path (NEW v0.5.0) */}
+      <div style={sectionStyle}>
+        <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
+          📁 Sources Directory
+        </label>
+        <input
+          type="text"
+          style={validationErrors.sources_dir ? errorInputStyle : inputFieldStyle}
+          value={settings.sources_dir}
+          onChange={(e) => onSettingChange('sources_dir', e.target.value)}
+        />
+        <div style={validationErrors.sources_dir ? errorTextStyle : helperTextStyle}>
+          {validationErrors.sources_dir 
+            ? `❌ ${validationErrors.sources_dir}` 
+            : 'Where saved source versions are stored'}
         </div>
       </div>
 

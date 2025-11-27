@@ -15,24 +15,24 @@ def init_sources_routes(source_service, db):
     """Initialize sources routes with dependencies"""
     
     @router.get("/api/sources/list")
-    async def list_sources(
-        timeframe: str = Query("3", regex="^(3|7|14)$"),
-        feed_type: str = Query("iptv", regex="^(iptv|gracenote)$")
-    ):
-        """Fetch available XML files from share.jesmann.com
+    async def list_sources(timeframe: str = Query("3"), feed_type: str = Query("iptv")):
+        """List available sources from share.jesmann.com
         
         Args:
-            timeframe: Days (3, 7, or 14)
-            feed_type: Feed type (iptv or gracenote)
+            timeframe: EPG timeframe (3, 7, 14)
+            feed_type: Feed type (iptv, gracenote)
         
         Returns:
-            Dictionary with available sources
+            Dictionary with sources list
         """
         try:
             logger.info(f"Fetching sources: timeframe={timeframe}, feed_type={feed_type}")
-            result = await source_service.fetch_sources(timeframe, feed_type)
-            logger.info(f"Found {len(result['sources'])} sources")
-            return result
+            
+            # fetch_sources returns a list directly, not a dict
+            sources = await source_service.fetch_sources(timeframe, feed_type)
+            
+            logger.info(f"Found {len(sources)} sources")
+            return {"sources": sources}
         except Exception as e:
             logger.error(f"Error fetching sources: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Failed to fetch sources")
@@ -60,42 +60,34 @@ def init_sources_routes(source_service, db):
             raise HTTPException(status_code=500, detail="Failed to save sources")
         
     @router.post("/api/sources/save")
-    async def save_sources(body: dict):
-        """Save sources with versioning (like channels)"""
-        sources = body.get('sources', [])
-        timeframe = body.get('timeframe', '3')
-        feed_type = body.get('feed_type', 'iptv')
+    async def save_sources(data: dict):
+        """Save selected sources with versioning and optional custom filename
         
-        if not sources:
-            raise HTTPException(status_code=400, detail="No sources provided")
+        Args:
+            data: Dictionary with:
+                - 'sources': List of source filenames
+                - 'timeframe': EPG timeframe (3, 7, 14)
+                - 'feed_type': Feed type (iptv, gracenote)
+                - 'filename': Optional custom filename (if not provided, uses default)
         
-        # Save versioned copy to /data/sources
-        import json
-        from pathlib import Path
-        from datetime import datetime
-        
-        sources_dir = Path('/data/sources')
-        sources_dir.mkdir(exist_ok=True)
-        
-        # Save as current
-        current_file = sources_dir / f'sources.json'
-        current_file.write_text(json.dumps({
-            'sources': sources,
-            'timeframe': timeframe,
-            'feed_type': feed_type,
-            'saved_at': datetime.now().isoformat()
-        }, indent=2))
-        
-        # Also save timestamped version
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        versioned_file = sources_dir / f'sources.json.{timestamp}'
-        versioned_file.write_text(current_file.read_text())
-        
-        return {
-            'status': 'saved',
-            'sources_count': len(sources),
-            'version': timestamp
-        }
+        Returns:
+            Status with save details
+        """
+        try:
+            sources = data.get("sources", [])
+            timeframe = data.get("timeframe", "3")
+            feed_type = data.get("feed_type", "iptv")
+            filename = data.get("filename", None)  # NEW: Accept custom filename
+            
+            if not isinstance(sources, list) or len(sources) == 0:
+                raise ValueError("sources must be a non-empty list")
+            
+            result = source_service.save_selected_sources(sources, timeframe, feed_type, filename)
+            logger.info(f"Saved {len(sources)} sources to {result['filename']}")
+            return result
+        except Exception as e:
+            logger.error(f"Error saving sources: {e}")
+            raise HTTPException(status_code=500, detail="Failed to save sources")
 
     @router.get("/api/sources/versions")
     async def get_source_versions():
@@ -123,3 +115,48 @@ def init_sources_routes(source_service, db):
                 pass
         
         return {'versions': versions}
+    
+    @router.get("/api/sources/versions")
+    async def get_source_versions():
+        """Get all source versions (current + archived)
+        
+        Returns:
+            List of source versions with metadata
+        """
+        try:
+            result = source_service.get_source_versions()
+            logger.info(f"Retrieved {len(result['versions'])} source versions")
+            return result
+        except Exception as e:
+            logger.error(f"Error getting source versions: {e}")
+            raise HTTPException(status_code=500, detail="Failed to get source versions")
+
+
+    @router.post("/api/sources/load-from-disk")
+    async def load_sources_from_disk(data: dict):
+        """Load sources from a saved version file on disk
+        
+        Args:
+            data: Dictionary with:
+                - 'filename': The source version filename to load
+        
+        Returns:
+            Status with loaded sources
+        """
+        try:
+            filename = data.get("filename", "")
+            if not filename:
+                raise ValueError("filename is required")
+            
+            result = source_service.load_sources_from_disk(filename)
+            logger.info(f"Loaded {result['count']} sources from {filename}")
+            return result
+        except FileNotFoundError as e:
+            logger.error(f"Source file not found: {filename}")
+            raise HTTPException(status_code=404, detail=f"Source file not found: {filename}")
+        except ValueError as e:
+            logger.error(f"Invalid source file: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid source file: {e}")
+        except Exception as e:
+            logger.error(f"Error loading sources from disk: {e}")
+            raise HTTPException(status_code=500, detail="Failed to load sources from disk")

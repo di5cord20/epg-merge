@@ -1,10 +1,10 @@
-# API Specification v0.4.8
+# API Specification v0.5.0
 
 Complete REST API documentation for EPG Merge.
 
 **Base URL:** `http://localhost:9193/api`  
 **Content-Type:** `application/json`  
-**Version:** 0.4.8
+**Version:** 0.5.0
 
 ---
 
@@ -701,3 +701,266 @@ curl -O http://localhost:9193/api/archives/download/merged.xml.gz
 ---
 
 **Need help?** See [Troubleshooting](TROUBLESHOOTING.md) or check [Architecture](ARCHITECTURE.md) for system details.
+
+
+
+## update the above with the below and cleanup this file
+
+## Sources (Updated v0.5.0)
+
+### List Sources
+```
+GET /api/sources/list?timeframe=3&feed_type=iptv
+
+Query Parameters:
+- timeframe: "3" | "7" | "14" (default: "3")
+- feed_type: "iptv" | "gracenote" (default: "iptv")
+
+Response: 200 OK
+{
+  "sources": ["country1.xml.gz", "country2.xml.gz", ...]
+}
+
+Error: 500 Internal Server Error
+{
+  "detail": "Failed to fetch sources"
+}
+```
+
+### Save Sources (Updated v0.5.0)
+```
+POST /api/sources/save
+
+Request Body:
+{
+  "sources": ["us.xml.gz", "uk.xml.gz"],
+  "timeframe": "3",
+  "feed_type": "iptv",
+  "filename": "us-sources"  // NEW: Optional custom filename
+}
+
+Response: 200 OK
+{
+  "status": "success",
+  "filename": "us-sources.json",    // Includes .json extension
+  "sources": 2,
+  "timeframe": "3",
+  "feed_type": "iptv",
+  "archived": true
+}
+
+Error: 500 Internal Server Error
+{
+  "detail": "Failed to save sources"
+}
+```
+
+### Get Source Versions (NEW v0.5.0)
+```
+GET /api/sources/versions
+
+Response: 200 OK
+{
+  "versions": [
+    {
+      "filename": "sources.json",
+      "is_current": true,
+      "created_at": "2025-11-26T23:30:00.000000",
+      "size_bytes": 145,
+      "sources_count": 3,
+      "sources": ["us.xml.gz", "uk.xml.gz", "ca.xml.gz"]
+    },
+    {
+      "filename": "sources.json.20251126_223015",
+      "is_current": false,
+      "created_at": "2025-11-26T22:30:15.000000",
+      "size_bytes": 132,
+      "sources_count": 2,
+      "sources": ["us.xml.gz", "uk.xml.gz"]
+    }
+  ]
+}
+
+Error: 500 Internal Server Error
+{
+  "detail": "Failed to get source versions"
+}
+```
+
+### Load Sources from Disk (NEW v0.5.0)
+```
+POST /api/sources/load-from-disk
+
+Request Body:
+{
+  "filename": "sources.json.20251126_223015"
+}
+
+Response: 200 OK
+{
+  "status": "success",
+  "filename": "sources.json.20251126_223015",
+  "sources": ["us.xml.gz", "uk.xml.gz"],
+  "count": 2,
+  "timeframe": "3",
+  "feed_type": "iptv",
+  "loaded_at": "2025-11-26T23:35:00.000000"
+}
+
+Error: 404 Not Found
+{
+  "detail": "Source file not found: sources.json.20251126_223015"
+}
+
+Error: 400 Bad Request
+{
+  "detail": "Invalid source file: Invalid JSON in sources.json.20251126_223015"
+}
+
+Error: 500 Internal Server Error
+{
+  "detail": "Failed to load sources from disk"
+}
+```
+
+---
+
+## Channels (Updated v0.5.0)
+
+### Save Channels (Updated v0.5.0)
+```
+POST /api/channels/save
+
+Request Body:
+{
+  "channels": ["ch1", "ch2", "ch3"],
+  "sources_count": 2,
+  "filename": "premium-channels"  // NEW: Optional custom filename
+}
+
+Response: 200 OK
+{
+  "status": "success",
+  "filename": "premium-channels.json",  // Includes .json extension
+  "channels": 3,
+  "sources": 2,
+  "archived": true
+}
+
+Error: 500 Internal Server Error
+{
+  "detail": "Failed to save channels"
+}
+
+Notes:
+- filename parameter is optional
+- If not provided, uses configured default (channels_filename setting)
+- .json extension added automatically if not present
+- Previous version auto-archived with timestamp
+- Metadata saved to database
+```
+
+---
+
+## Settings (Updated v0.5.0)
+
+### New Settings Keys
+
+#### sources_filename
+```
+Key: "sources_filename"
+Type: string
+Default: "sources.json"
+Validation: Must end with .json
+
+Usage:
+- Fallback default filename when saving sources without custom name
+- Used in SaveDialog as default option
+- Example values: "sources.json", "my-sources.json"
+
+Set via:
+POST /api/settings/set
+{
+  "sources_filename": "my-sources.json"
+}
+```
+
+#### sources_dir
+```
+Key: "sources_dir"
+Type: string
+Default: "/data/sources"
+Validation: Required, must be valid path
+
+Usage:
+- Directory where source version JSON files are stored
+- Source archives stored here with timestamps
+- Example values: "/data/sources", "/mnt/storage/sources"
+
+Set via:
+POST /api/settings/set
+{
+  "sources_dir": "/data/sources"
+}
+```
+
+#### channels_filename (Existing, now in Settings)
+```
+Key: "channels_filename"
+Type: string
+Default: "channels.json"
+Validation: Must end with .json
+
+Usage:
+- Fallback default filename when saving channels without custom name
+```
+
+---
+
+## Database Schema Changes (v0.5.0)
+
+### New Table: source_versions
+```sql
+CREATE TABLE source_versions (
+    filename TEXT PRIMARY KEY,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    sources_count INTEGER,
+    size_bytes INTEGER
+);
+
+Indexes:
+- PRIMARY KEY on filename
+- TIMESTAMP on created_at for sorting
+
+Example rows:
+| filename                        | created_at           | sources_count | size_bytes |
+|--------------------------------|----------------------|---------------|-----------|
+| sources.json                   | 2025-11-26 23:30:00  | 3             | 145       |
+| sources.json.20251126_223015   | 2025-11-26 22:30:15  | 2             | 132       |
+| us-sources.json                | 2025-11-26 23:35:00  | 5             | 210       |
+```
+
+### Updated Table: channel_versions
+```
+No schema changes
+Same structure as before, now populated with:
+- Default filenames: channels.json
+- Custom filenames: premium-channels.json, sports-channels.json, etc.
+```
+
+---
+
+## Summary of Changes
+
+| Endpoint | Method | Status | Change |
+|----------|--------|--------|--------|
+| /api/sources/list | GET | ✅ UPDATED | Fixed list handling |
+| /api/sources/save | POST | ✅ UPDATED | Added filename parameter |
+| /api/sources/versions | GET | ✨ NEW | List saved versions |
+| /api/sources/load-from-disk | POST | ✨ NEW | Load specific version |
+| /api/channels/save | POST | ✅ UPDATED | Added filename parameter |
+| /api/settings/set | POST | ✅ UPDATED | Added sources_filename, sources_dir |
+
+---
+
+**Last Updated:** v0.5.0 - November 26, 2025

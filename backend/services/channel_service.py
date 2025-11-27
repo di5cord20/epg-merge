@@ -90,32 +90,39 @@ class ChannelService(BaseService):
             self.logger.error(f"Error getting selected channels: {e}")
             return []
     
-    def save_selected_channels(self, channels: List[str], sources_count: int = 0) -> Dict[str, Any]:
-        """Save selected channels with versioning
+    def save_selected_channels(self, channels: List[str], sources_count: int = 0, filename: str = None) -> Dict[str, Any]:
+        """Save selected channels with versioning and optional custom filename
         
         Args:
             channels: List of channel IDs to save
             sources_count: Number of sources used (for metadata)
+            filename: Custom filename (optional). If None, uses configured default
         
         Returns:
             Dictionary with save status
         """
         from services.settings_service import SettingsService
         
-        # Get configured channels filename
+        # Get configured channels directory and default filename
         settings_service = SettingsService(self.db)
-        channels_filename = settings_service.get_channels_filename()
-        
-        # Ensure channels directory exists
         channels_dir = self.config.channels_dir
         channels_dir.mkdir(parents=True, exist_ok=True)
         
-        # Current channels file path
-        current_path = channels_dir / channels_filename
+        # Determine filename to use
+        if not filename:
+            # Use configured default if no custom filename provided
+            filename = settings_service.get_channels_filename()
+        else:
+            # Ensure filename ends with .json
+            if not filename.endswith('.json'):
+                filename = filename + '.json'
         
-        self.logger.info(f"💾 Saving channels: {channels_filename}")
+        # Current channels file path
+        current_path = channels_dir / filename
+        
+        self.logger.info(f"💾 Saving channels: {filename}")
         self.logger.info(f"   Source: Current selection")
-        self.logger.info(f"   Target: /data/channels/{channels_filename}")
+        self.logger.info(f"   Target: /data/channels/{filename}")
         
         # STEP 1: Archive existing channels version if it exists
         if current_path.exists():
@@ -124,10 +131,10 @@ class ChannelService(BaseService):
             timestamp = creation_time.strftime("%Y%m%d_%H%M%S")
             
             # For channels, we keep the full filename with timestamp
-            archived_name = f"{channels_filename}.{timestamp}"
+            archived_name = f"{filename}.{timestamp}"
             archive_path = channels_dir / archived_name
             
-            self.logger.info(f"   Archiving: {channels_filename} → {archived_name}")
+            self.logger.info(f"   Archiving: {filename} → {archived_name}")
             
             # Move to archive with timestamp
             shutil.move(str(current_path), str(archive_path))
@@ -135,7 +142,7 @@ class ChannelService(BaseService):
             # Save metadata for archived version
             try:
                 if self.db:
-                    archive_data = self.db.get_channel_version(channels_filename)
+                    archive_data = self.db.get_channel_version(filename)
                     if archive_data:
                         archive_sources = archive_data.get('sources_count', 0)
                         archive_channels_cnt = archive_data.get('channels_count', 0)
@@ -176,12 +183,12 @@ class ChannelService(BaseService):
                 json.dump(channels_data, f, indent=2, ensure_ascii=False)
             
             file_size = current_path.stat().st_size
-            self.logger.info(f"   ✔ Written to /data/channels/{channels_filename} ({file_size} bytes)")
+            self.logger.info(f"   ✔ Written to /data/channels/{filename} ({file_size} bytes)")
             
             # Save metadata
             if self.db:
                 self.db.save_channel_version(
-                    channels_filename,
+                    filename,
                     sources_count,
                     len(channels),
                     file_size
@@ -196,7 +203,7 @@ class ChannelService(BaseService):
         
         return {
             "status": "success",
-            "filename": channels_filename,
+            "filename": filename,
             "channels": len(channels),
             "sources": sources_count,
             "archived": True
@@ -219,6 +226,16 @@ class ChannelService(BaseService):
             "filename": f"channels_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         }
     
+    def get_channels_filename(self) -> str:
+        """Get configured channels filename
+        
+        Returns:
+            Filename for channels (e.g., 'channels.json')
+        """
+        from services.settings_service import SettingsService
+        settings_service = SettingsService(self.db)
+        return settings_service.get_channels_filename()
+
     def get_channel_versions(self) -> Dict[str, List[Dict[str, Any]]]:
         """Get all channel versions (current + archived)
         
@@ -263,6 +280,53 @@ class ChannelService(BaseService):
         
         return {"versions": versions}
     
+    def load_channels_from_disk(self, filename: str) -> Dict[str, Any]:
+        """Load channels from a saved version file on disk
+        
+        Args:
+            filename: Channel version filename to load
+        
+        Returns:
+            Dictionary with status and loaded channels
+        
+        Raises:
+            FileNotFoundError: If the file doesn't exist
+            ValueError: If the file is invalid JSON
+        """
+        try:
+            file_path = self.get_channel_version_path(filename)
+            
+            self.logger.info(f"📂 Loading channels from disk: {filename}")
+            
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            channels = data.get('channels', [])
+            self.logger.info(f"   ✔ Loaded {len(channels)} channels from {filename}")
+            
+            # Update database with these as selected channels
+            if self.db:
+                self.db.save_selected_channels(channels)
+                self.logger.info(f"   ✔ Updated selected channels in database")
+            
+            return {
+                "status": "success",
+                "filename": filename,
+                "channels": channels,
+                "count": len(channels),
+                "loaded_at": datetime.now().isoformat()
+            }
+        
+        except FileNotFoundError as e:
+            self.logger.error(f"   ✘ Channel file not found: {filename}")
+            raise
+        except json.JSONDecodeError as e:
+            self.logger.error(f"   ✘ Invalid JSON in channel file: {e}")
+            raise ValueError(f"Invalid JSON in {filename}: {e}")
+        except Exception as e:
+            self.logger.error(f"   ✘ Error loading channels from disk: {e}")
+            raise
+
     def get_channel_version_path(self, filename: str) -> Path:
         """Get the path to a channel version file
         

@@ -2,13 +2,24 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useApi } from '../hooks/useApi';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { DualListSelector } from '../components/DualListSelector';
+import { SaveDialog } from '../components/SaveDialog';
 
+/**
+ * SourcesPage - v0.5.0
+ * Allows users to select sources from available options
+ * Features: custom filename selection on save, load from disk, versioning
+ */
 export const SourcesPage = ({ onSave }) => {
   const [timeframe, setTimeframe] = useLocalStorage('selectedTimeframe', '3');
   const [feedType, setFeedType] = useLocalStorage('selectedFeedType', 'iptv');
   const [selectedSources, setSelectedSources] = useLocalStorage('selectedSources', []);
   
   const [availableSources, setAvailableSources] = useState([]);
+  const [sourceVersions, setSourceVersions] = useState([]);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showLoadModal, setShowLoadModal] = useState(false);
+  const [loadedFromDisk, setLoadedFromDisk] = useState(null);
+  const [defaultSourcesFilename, setDefaultSourcesFilename] = useState('sources.json');
   const { call, loading, error } = useApi();
   
   useEffect(() => {
@@ -29,21 +40,56 @@ export const SourcesPage = ({ onSave }) => {
   useEffect(() => {
     loadSources();
   }, [loadSources]);
+
+  // Load default filename and source versions from settings
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const settings = await call('/api/settings/get');
+        if (settings.sources_filename) {
+          setDefaultSourcesFilename(settings.sources_filename);
+        }
+        // Load source versions for the dialog
+        loadSourceVersions();
+      } catch (err) {
+        console.error('Error loading settings:', err);
+      }
+    };
+    loadSettings();
+  }, [call]);
+
+  // Load available source versions for the save dialog
+  const loadSourceVersions = async () => {
+    try {
+      const data = await call('/api/sources/versions');
+      if (data.versions) {
+        setSourceVersions(data.versions);
+      }
+    } catch (err) {
+      console.error('Error loading source versions:', err);
+    }
+  };
   
-  const saveSources = async () => {
+  const handleSaveClick = () => {
+    // Open save dialog when user clicks Save button
+    setShowSaveDialog(true);
+  };
+
+  const handleSaveConfirm = async (filename) => {
     if (selectedSources.length === 0) {
       alert('Please select at least one source');
       return;
     }
 
     try {
-      // Save to backend with versioning (like channels)
+      // Save to backend with custom filename
       const data = await call('/api/sources/save', {
         method: 'POST',
         body: JSON.stringify({ 
           sources: selectedSources,
           timeframe: timeframe,
-          feed_type: feedType
+          feed_type: feedType,
+          filename: filename
         })
       });
       
@@ -57,9 +103,30 @@ export const SourcesPage = ({ onSave }) => {
         })
       });
       
-      alert(`✅ Sources saved!\n${selectedSources.length} source(s) selected\nVersion: ${data.version || 'current'}`);
+      setShowSaveDialog(false);
+      alert(`✅ Sources saved!\n${selectedSources.length} source(s) selected\nFile: ${filename}`);
+      // Refresh source versions after save
+      loadSourceVersions();
     } catch (err) {
       alert('Error saving sources: ' + err.message);
+    }
+  };
+
+  // Load sources from saved disk version
+  const loadFromDisk = async (filename) => {
+    try {
+      const data = await call('/api/sources/load-from-disk', {
+        method: 'POST',
+        body: JSON.stringify({ filename })
+      });
+      
+      const sources = data.sources || [];
+      setSelectedSources(sources);
+      setLoadedFromDisk(filename);
+      setShowLoadModal(false);
+      alert(`Loaded ${sources.length} sources from ${filename}`);
+    } catch (err) {
+      alert('Error loading sources: ' + err.message);
     }
   };
   
@@ -142,6 +209,21 @@ export const SourcesPage = ({ onSave }) => {
         
         <h3 style={{ marginTop: '30px' }}>Select Sources</h3>
         
+        {/* Show currently loaded source */}
+        {loadedFromDisk && (
+          <div style={{
+            marginBottom: '15px',
+            padding: '10px',
+            background: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: '4px',
+            fontSize: '13px',
+            color: '#60a5fa'
+          }}>
+            📁 Currently loaded from: <strong>{loadedFromDisk}</strong>
+          </div>
+        )}
+        
         <DualListSelector
           available={availableSources}
           selected={selectedSources}
@@ -164,10 +246,16 @@ export const SourcesPage = ({ onSave }) => {
           </button>
           <button 
             className="btn btn-success btn-lg"
-            onClick={saveSources}
+            onClick={handleSaveClick}
             disabled={selectedSources.length === 0}
           >
             💾 Save Sources ({selectedSources.length})
+          </button>
+          <button 
+            className="btn btn-secondary"
+            onClick={() => setShowLoadModal(true)}
+          >
+            💿 Load from Disk
           </button>
         </div>
 
@@ -194,6 +282,117 @@ export const SourcesPage = ({ onSave }) => {
           )}
         </div>
       </div>
+
+      {/* Load from Disk Modal */}
+      {showLoadModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: '#1e293b',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '12px',
+            padding: '30px',
+            maxWidth: '500px',
+            width: '90%',
+            maxHeight: '70vh',
+            overflowY: 'auto',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8)'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0', color: '#e2e8f0' }}>
+              📁 Load Sources from Disk
+            </h3>
+            
+            <p style={{ color: '#94a3b8', marginBottom: '20px', fontSize: '14px' }}>
+              Select a saved sources version to load:
+            </p>
+
+            {sourceVersions.length === 0 ? (
+              <div style={{
+                padding: '20px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                borderRadius: '6px',
+                color: '#94a3b8',
+                textAlign: 'center',
+                marginBottom: '20px'
+              }}>
+                No saved sources versions found
+              </div>
+            ) : (
+              <div style={{ marginBottom: '20px' }}>
+                {sourceVersions.map(version => (
+                  <div
+                    key={version.filename}
+                    onClick={() => loadFromDisk(version.filename)}
+                    style={{
+                      padding: '12px',
+                      marginBottom: '8px',
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      border: '1px solid rgba(59, 130, 246, 0.3)',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'}
+                  >
+                    <div style={{ color: '#60a5fa', fontWeight: '600', marginBottom: '4px' }}>
+                      {version.is_current && '📌 '}
+                      {version.filename}
+                      {version.is_current && ' (Current)'}
+                    </div>
+                    <div style={{ color: '#94a3b8', fontSize: '12px' }}>
+                      {version.sources_count} sources • {new Date(version.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={() => setShowLoadModal(false)}
+                style={{
+                  padding: '10px 20px',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: '#e2e8f0',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '500',
+                  fontSize: '14px'
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save Dialog */}
+      {showSaveDialog && (
+        <SaveDialog
+          type="sources"
+          versions={sourceVersions}
+          defaultFilename={defaultSourcesFilename}
+          onSave={handleSaveConfirm}
+          onCancel={() => setShowSaveDialog(false)}
+        />
+      )}
     </div>
   );
 };

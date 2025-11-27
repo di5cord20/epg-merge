@@ -59,12 +59,13 @@ def init_channels_routes(channel_service, db):
 
     @router.post("/api/channels/save")
     async def save_channels(data: dict):
-        """Save selected channels with versioning and archiving
+        """Save selected channels with versioning and optional custom filename
         
         Args:
             data: Dictionary with:
                 - 'channels': List of channel IDs
                 - 'sources_count': Number of sources used (optional)
+                - 'filename': Optional custom filename (if not provided, uses default)
         
         Returns:
             Status with save details
@@ -72,11 +73,14 @@ def init_channels_routes(channel_service, db):
         try:
             channels = data.get("channels", [])
             sources_count = data.get("sources_count", 0)
+            filename = data.get("filename", None)  # IMPORTANT: Extract custom filename
             
             if not isinstance(channels, list):
                 raise ValueError("channels must be a list")
             
-            result = channel_service.save_selected_channels(channels, sources_count)
+            # Pass filename to service - this is the key fix
+            result = channel_service.save_selected_channels(channels, sources_count, filename)
+            logger.info(f"Saved {len(channels)} channels to {result['filename']}")
             return result
         except Exception as e:
             logger.error(f"Error saving channels: {e}")
@@ -143,3 +147,32 @@ def init_channels_routes(channel_service, db):
         except Exception as e:
             logger.error(f"Error importing channels: {e}")
             raise HTTPException(status_code=500, detail="Failed to import channels")
+        
+    @router.post("/api/channels/load-from-disk")
+    async def load_channels_from_disk(data: dict):
+        """Load channels from a saved version file on disk
+        
+        Args:
+            data: Dictionary with:
+                - 'filename': The channel version filename to load
+        
+        Returns:
+            Status with loaded channels
+        """
+        try:
+            filename = data.get("filename", "")
+            if not filename:
+                raise ValueError("filename is required")
+            
+            result = channel_service.load_channels_from_disk(filename)
+            logger.info(f"Loaded {result['count']} channels from {filename}")
+            return result
+        except FileNotFoundError as e:
+            logger.error(f"Channel file not found: {filename}")
+            raise HTTPException(status_code=404, detail=f"Channel file not found: {filename}")
+        except ValueError as e:
+            logger.error(f"Invalid channel file: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid channel file: {e}")
+        except Exception as e:
+            logger.error(f"Error loading channels from disk: {e}")
+            raise HTTPException(status_code=500, detail="Failed to load channels from disk")
