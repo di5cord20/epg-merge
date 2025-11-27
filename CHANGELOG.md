@@ -4,6 +4,46 @@ All notable changes to the EPG Merge Application are documented in this file.
 
 ---
 
+## [0.4.9] - 2025-11-26
+
+### Added
+- **Cron-Based Scheduler** - Fully automated merge execution with daily/weekly scheduling
+- **Timeout Enforcement** - Hard-kill of merges exceeding timeout via `asyncio.wait_for()`
+- **Memory Tracking** - Peak memory monitoring during execution (reported in MB)
+- **Auto-Recovery** - Automatic cleanup of jobs stuck in RUNNING state for 2+ hours
+- **Source Configuration Versioning** - Save and reuse source configurations
+- **Frontend Navigation Guard** - Prevents page navigation during active merge
+- **Enhanced Retry Logic** - API calls auto-retry up to 3 times with exponential backoff
+- **Job Controls** - Cancel running merge, clear history, manual execution trigger
+- **Discord Notifications** - Success/failure notifications with 8 statistics
+- **Lifespan Context Manager** - Replaces deprecated @app.on_event decorator
+
+### Changed
+- Backend: Lifespan management using modern FastAPI pattern
+- Dashboard: New status cards, auto-refresh toggle, job controls
+- Settings: Enhanced Schedule panel with source/channels dropdowns
+
+### Fixed
+- Settings changes now detected within 60 seconds (no restart needed)
+- Navigation properly prevented during merge execution
+- API calls properly retry on network errors
+
+### Testing Status
+- ✅ All 56+ existing tests passing
+- ✅ Scheduler tested with manual triggers and auto-recovery
+- ✅ Timeout enforcement validated
+- ✅ Memory tracking confirmed
+
+### Migration Notes
+- **No breaking changes** - Fully backward compatible
+- **Auto-recovery on startup** - Stuck jobs cleaned automatically
+- **Dynamic recalculation** - Settings changes take effect within 60 seconds
+
+### Known Limitations
+- Healthcheck timeout must be 35+ seconds (merges block API temporarily)
+
+---
+
 ## [0.4.8] - 2025-11-23
 
 ### Added

@@ -236,7 +236,7 @@ export const SettingsSchedule = ({
       {/* ===== SOURCE CONFIGURATION SELECTION ===== */}
       <div style={sectionStyle}>
         <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
-          Source Configuration for Scheduled Merge
+          Sources to use for Scheduled Merge
         </label>
         <div style={{ position: 'relative', marginBottom: '8px' }}>
           <select
@@ -282,11 +282,11 @@ export const SettingsSchedule = ({
                 <strong style={{ color: '#60a5fa' }}>Feed Type:</strong> {selectedSourceDetails.feed_type.toUpperCase()}
               </div>
             )}
-            {selectedSourceDetails?.timeframe && (
+            {/* {selectedSourceDetails?.timeframe && (
               <div style={{ marginBottom: '8px', color: '#94a3b8' }}>
                 <strong style={{ color: '#60a5fa' }}>Timeframe:</strong> {selectedSourceDetails.timeframe} days
               </div>
-            )}
+            )} */}
             <div style={{ color: '#94a3b8' }}>
               <strong style={{ color: '#60a5fa' }}>Sources Included ({Array.isArray(selectedSourceDetails?.sources) ? selectedSourceDetails.sources.length : 0}):</strong>
               <div style={{
@@ -315,7 +315,7 @@ export const SettingsSchedule = ({
       {/* ===== CHANNELS VERSION SELECTION ===== */}
       <div style={sectionStyle}>
         <label style={{ display: 'block', fontWeight: '600', marginBottom: '8px' }}>
-          Channels JSON Version for Scheduled Merge
+          Channels to use for Scheduled Merge
         </label>
         <select
           style={selectFieldStyle}

@@ -342,6 +342,31 @@ cat /opt/epg-merge-app/.env
 
 ---
 
+### Health Check Configuration (v0.4.9 Important)
+
+**CRITICAL:** Merges are CPU/IO intensive and can temporarily block the API. If you have a healthcheck, ensure sufficient timeout:
+```yaml
+# docker-compose.yml
+services:
+  backend:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9193/api/health"]
+      interval: 30s
+      timeout: 35s  # ← INCREASED from default 10s
+      retries: 3
+      start_period: 5s
+```
+
+Without this, Docker may restart your container during large merges.
+
+**Alternative:** Disable healthcheck if not needed:
+```yaml
+healthcheck:
+  disable: true
+```
+
+---
+
 ## Docker Compose Deployment
 
 For Docker-based deployment:

@@ -134,6 +134,26 @@ df -h /config
 | Memory usage high during merge | Check `ps aux` | Normal during large merges, restart after |
 | Merge incomplete | Check error logs | Check channel filtering settings |
 
+### Scheduler Issues (v0.4.9)
+
+| Problem | Diagnosis | Solution |
+|---------|-----------|----------|
+| Scheduler shows "No sources configured" | `selected_sources` setting is empty | Go to Settings → Schedule, select source version, click Save |
+| Scheduler recalculates but doesn't run | Settings changed but old sleep active | Scheduler checks every 60s, breaks sleep on change, recalculates |
+| Next run time incorrect | Settings changed but UI not updated | Refresh page or check Dashboard |
+| Memory usage high during merge | Normal - peak tracked during execution | Check Dashboard for peak_memory_mb value |
+| Job won't cancel | Already completed before cancel sent | Check status, may have already finished |
+| Clear History button disabled | No job history exists yet | Run manual merge to create history |
+
+**Debugging Scheduler:**
+```bash
+docker compose logs backend | grep -i scheduler
+curl http://localhost:9193/api/jobs/status | jq
+curl -X POST http://localhost:9193/api/jobs/execute-now
+```
+
+---
+
 ### Archive Issues
 
 | Problem | Diagnosis | Solution |

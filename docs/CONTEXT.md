@@ -3,8 +3,8 @@
 ---
 
 ⚠️ **IMPORTANT:** Update this file after each commit to keep it current for future AI conversations.  
-**Current Version:** 0.4.8
-**Last Updated:** November 23, 2025 (Channels Versioning & Configurable Paths Complete)  
+**Current Version:** 0.4.9
+**Last Updated:** November 26, 2025 (Scheduler Implementation Complete)
 **Status:** Production Ready | Tests: 56+/56+ passing
 
 ---
@@ -12,6 +12,84 @@
 ## 🚀 AI Development Workflow
 
 This section guides how to use CONTEXT.md for productive AI conversations. Follow these phases for each development task.
+
+## 📋 Documentation Update Workflow
+
+**How to handle documentation changes efficiently:**
+
+### Artifact vs. Chat Rule
+
+**Use ARTIFACTS for:**
+- Complete file replacements (entire file rewrite)
+- New files being created
+- Substantial additions (50+ lines in single section)
+- Code blocks or documents you'll copy-paste entirely
+
+**Use CHAT for:**
+- Surgical changes (small updates, a few lines)
+- Multi-file changes with specific locations
+- Line-by-line edits across multiple files
+- Removals or replacements of specific sections
+
+### Format for Chat Updates
+
+When providing chat-based updates:
+1. **Clearly separate each file** with `## FILE N: filename.md` header
+2. **Specify exact location** with "Find:" and "Replace with:" blocks
+3. **Use line numbers** (~line XXX) to help locate sections
+4. **Use code blocks** for what to find and what to replace
+5. **End section before starting next file** with clear break
+
+### Example Chat Format
+```
+## FILE 1: README.md
+
+**Change 1:** Update version line (~line 15)
+Find:
+\`\`\`
+**Version:** 0.4.8
+\`\`\`
+Replace with:
+\`\`\`
+**Version:** 0.4.9
+\`\`\`
+
+---
+
+## FILE 2: CHANGELOG.md
+
+**Add at top** after first heading:
+\`\`\`
+[new content here]
+\`\`\`
+```
+
+### Token Efficiency
+
+This approach:
+- ✅ Avoids full doc artifacts for small changes (saves tokens)
+- ✅ Provides clear instructions AI can follow exactly
+- ✅ Makes it easy to verify changes before applying
+- ✅ Reduces back-and-forth questions about where to update
+
+### Files Organization (Current)
+
+- **SCHEDULING.md** - Job scheduling and automation
+- **CONTEXT.md** - Architecture overview and AI coder reference (THIS FILE)
+- **CHANGELOG.md** - Version history and release notes
+- **README.md** - User-facing getting started guide
+- **ARCHITECTURE.md** - Deep system design documentation
+- **API-SPEC.md** - REST API endpoint reference
+- **DEPLOYMENT.md** - Production deployment workflows
+- **DEVELOPMENT.md** - Local dev environment setup
+- **MAINTENANCE.md** - Operations and monitoring
+- **TROUBLESHOOTING.md** - Common issues and solutions
+- **QUICK_REFERENCE.md** - Command checklists and templates
+- **QUICK_START.md** - 5-minute local setup
+- **DOCKER_DEPLOYMENT.md** - Docker-specific deployment
+- **DOCKER_QUICKSTART.md** - Docker quick reference
+
+---
 
 ### Setup: Before You Start
 
@@ -183,6 +261,46 @@ Architecture Overview (v0.4.8)
 ---
 
 ## 📁 Code Organization - By Feature
+
+### Feature: Scheduled Merge Execution with Cron Scheduling (v0.4.9)
+
+**Files:**
+- `backend/main.py` - Lifespan context manager (replaces @app.on_event)
+- `backend/services/job_service.py` - Cron scheduler, timeout enforcement, auto-recovery
+- `backend/routers/jobs.py` - Job management endpoints (added `/api/jobs/cancel`)
+- `frontend/src/App.jsx` - Navigation guard, job status monitoring
+- `frontend/src/hooks/useApi.js` - Enhanced retry logic
+- `frontend/src/pages/DashboardPage.js` - Job monitoring, cancel/clear buttons
+- `frontend/src/pages/settings/SettingsSchedule.js` - Source/channels version selection
+
+**What it does:**
+1. Cron-based scheduling (daily/weekly) with dynamic recalculation
+2. Timeout enforcement with hard-kill via `asyncio.wait_for()`
+3. Peak memory tracking during merges
+4. Auto-recovery of stuck jobs (2+ hour detection)
+5. Source/channels version selection for scheduled runs
+6. Discord notifications on success/failure
+7. Job history with 8 statistics per execution
+
+See [SCHEDULING.md](docs/SCHEDULING.md) for complete guide.
+
+---
+
+### Feature: Frontend Navigation Guard & Job Monitoring (v0.4.9)
+
+**Files:**
+- `frontend/src/App.jsx` - Navigation guard with beforeunload event
+- `frontend/src/hooks/useApi.js` - Retry logic (3 attempts, exponential backoff)
+- `frontend/src/pages/DashboardPage.js` - Cancel/Clear/Refresh buttons
+
+**What it does:**
+1. Prevents page navigation during merge (shows warning)
+2. Polls `/api/jobs/status` every 5 seconds
+3. Displays orange warning banner when job running
+4. Auto-retry API calls with exponential backoff
+5. Job controls (Cancel, Clear History, Refresh, Auto-refresh toggle)
+
+---
 
 ### Feature: Application Version (v0.4.8)
 **Files:**
@@ -762,6 +880,7 @@ curl http://localhost:9193/api/health
 
 | Version | Date | Major Changes |
 |---------|------|---------------|
+| 0.4.9 | Nov 26, 2025 | Cron scheduler, timeout enforcement, memory tracking, auto-recovery, source versioning, Discord notifications, navigation guard, retry logic |
 | 0.4.8 | Nov 23, 2025 | Channel versioning, configurable paths, merge_timeframe setting, merged Archives UI with channels panel |
 | 0.4.7 | Nov 2, 2025 | Scheduled merge monitoring, memory tracking, enhanced Discord notifications |
 | 0.4.6 | Nov 2, 2025 | Router refactoring, modular architecture |

@@ -1,38 +1,140 @@
-# Job Scheduling Guide
+# Scheduling Guide - EPG Merge v0.4.9
 
-Configure automated merge jobs to run on a schedule.
+Configure automated merge jobs to run on a schedule using cron-based scheduling.
 
 ---
 
 ## Overview
 
-EPG Merge includes complete job scheduling infrastructure. Merges can be configured to run automatically at specified times (daily or weekly).
+EPG Merge v0.4.9 includes a **production-ready cron-based scheduler** that automatically executes merges on a configurable schedule.
 
 **Current Status:**
-- ✅ Infrastructure complete and fully tested
-- ✅ Database schema ready
-- ✅ API endpoints working
-- ✅ Cron expression generation ready
-- 🔄 Scheduled execution not yet active in production (infrastructure ready to enable)
+- ✅ Fully implemented and tested
+- ✅ Runs as background async task
+- ✅ Auto-recovers from stuck jobs
+- ✅ Timeout enforcement with hard-kill
+- ✅ Peak memory tracking
+- ✅ Discord notifications
+
+---
+
+## Quick Setup (5 minutes)
+
+### 1. Select Sources & Channels
+- Go to **Sources** page → Select timeframe, feed type, files → Save
+- Go to **Channels** page → Load from sources → Select channels → Save
+
+### 2. Configure Schedule
+- Go to **Settings** → **Schedule** panel
+- Set **Schedule Frequency** (Daily or Weekly)
+- Set **Merge Time** (HH:MM format, UTC)
+- If Weekly: Select **Merge Days**
+- Set **EPG Timeframe** (3, 7, or 14 days)
+- Select **Source Configuration** to use
+- Select **Channels Version** to use
+- Click **Save**
+
+### 3. Monitor
+- Go to **Dashboard** to see:
+  - Job status (Running or Idle)
+  - Next scheduled run time
+  - Latest job details (memory, duration, channels, programs)
+  - Job execution history
+
+✅ **Done!** Merges now run automatically on your schedule.
 
 ---
 
 ## Configuration
 
-### Where to Configure
-
-Settings are managed through the Settings UI (Settings → Schedule panel) or via API.
-
 ### Settings Keys
 
+All settings stored in SQLite database. Access via **Settings** page or API.
+
+| Setting | Type | Default | Purpose |
+|---------|------|---------|---------|
+| `merge_schedule` | string | "daily" | "daily" or "weekly" |
+| `merge_time` | string | "00:00" | HH:MM format (UTC) |
+| `merge_days` | JSON array | "[0-6]" | Days 0=Sun...6=Sat (weekly only) |
+| `merge_timeframe` | string | "3" | EPG timeframe: "3", "7", or "14" days |
+| `merge_channels_version` | string | "current" | Which channels.json to use |
+| `selected_sources` | JSON array | "[]" | Source files to merge |
+| `merge_timeout` | int | 300 | Hard timeout in seconds |
+| `discord_webhook` | string | "" | Discord webhook for notifications |
+
+### Schedule Types
+
+#### Daily
+Merge runs every day at specified time:
 ```json
 {
-  "merge_schedule": "daily",              // "daily" or "weekly"
-  "merge_time": "02:30",                  // UTC time HH:MM
-  "merge_days": [1, 3, 5],                // Weekdays (0=Sun, 6=Sat), weekly only
-  "archive_retention_cleanup_expired": true  // Auto-cleanup old archives
+  "merge_schedule": "daily",
+  "merge_time": "02:30"
 }
 ```
+**Cron:** `30 2 * * *`
+
+#### Weekly
+Merge runs on selected days at specified time:
+```json
+{
+  "merge_schedule": "weekly",
+  "merge_time": "14:00",
+  "merge_days": ["1", "3", "5"]
+}
+```
+**Cron:** `0 14 * * 1,3,5` (Monday, Wednesday, Friday at 2 PM)
+
+---
+
+## How It Works
+
+### Scheduler Architecture
+
+```
+Application Startup
+  ↓
+Detect & recover stuck jobs (2+ hours threshold)
+  ↓
+SCHEDULER LOOP:
+  1. Load settings (merge_schedule, merge_time, merge_days, selected_sources)
+  2. Build cron expression
+  3. Calculate next run time
+  4. Sleep until scheduled time (check every 60s for setting changes)
+  5. If settings changed → recalculate and loop
+  6. If another job running → skip this execution
+  7. EXECUTE MERGE with timeout enforcement
+  8. Save job record to database
+  9. Send Discord notification (if configured)
+  10. Loop back to step 1
+```
+
+### Key Features
+
+**Dynamic Recalculation:**
+- Scheduler checks for setting changes every 60 seconds during sleep
+- If merge_time or merge_schedule changes, scheduler immediately recalculates
+- **No restart needed!** Changes take effect within 60 seconds
+
+**Timeout Enforcement:**
+- Merges exceeding `merge_timeout` (default 300s) are hard-killed
+- Uses `asyncio.wait_for()` for enforcement
+- Job marked as TIMEOUT status in history
+
+**Memory Tracking:**
+- Peak memory usage monitored during each merge
+- Reported in MB via job history
+- View in Dashboard → Latest Job Details
+
+**Auto-Recovery:**
+- On startup, detects jobs stuck in RUNNING state for 2+ hours
+- Automatically recovers and marks as failed
+- Scheduler can then resume normally
+
+**Discord Notifications:**
+- Success: 8 statistics (filename, channels, programs, size, memory, duration, days, timestamp)
+- Failure: Error message and job ID
+- Optional - set webhook URL in Settings → Notifications
 
 ---
 
@@ -41,418 +143,308 @@ Settings are managed through the Settings UI (Settings → Schedule panel) or vi
 ### Daily Merge at 2:30 AM UTC
 
 **Settings:**
-```json
-{
-  "merge_schedule": "daily",
-  "merge_time": "02:30"
-}
-```
+1. Go to **Settings** → **Schedule**
+2. Set **Schedule Frequency** to "Daily"
+3. Set **Merge Time** to "02:30"
+4. Click **Save**
 
-**Cron Expression:** `30 2 * * *` (runs every day at 02:30 UTC)
-
-**UI Steps:**
-1. Go to Settings → Schedule
-2. Set "Schedule" to "Daily"
-3. Set "Time" to "02:30"
-4. Click "Save"
-
-### Weekly Merge (Mon, Wed, Fri at 3:00 AM UTC)
-
-**Settings:**
-```json
-{
-  "merge_schedule": "weekly",
-  "merge_time": "03:00",
-  "merge_days": [1, 3, 5]
-}
-```
-
-**Cron Expression:** `0 3 * * 1,3,5` (Mondays, Wednesdays, Fridays at 03:00 UTC)
-
-**UI Steps:**
-1. Go to Settings → Schedule
-2. Set "Schedule" to "Weekly"
-3. Set "Time" to "03:00"
-4. Check: Monday, Wednesday, Friday
-5. Click "Save"
-
-### Weekends Only at Midnight
-
-**Settings:**
-```json
-{
-  "merge_schedule": "weekly",
-  "merge_time": "00:00",
-  "merge_days": [0, 6]
-}
-```
-
-**Cron Expression:** `0 0 * * 0,6` (Saturdays and Sundays at 00:00 UTC)
-
----
-
-## API Usage
-
-### Check Schedule Status
-
+**Verification:**
 ```bash
 curl http://localhost:9193/api/jobs/status
+# Response includes: "next_scheduled_run": "2025-11-27T02:30:00"
 ```
 
-Response includes next scheduled run time:
+### Weekly Merge (Mon, Wed, Fri at 3:00 PM UTC)
 
-```json
-{
-  "is_running": false,
-  "next_scheduled_run": "2025-11-02T02:30:00Z",
-  "schedule_cron": "30 2 * * *",
-  "latest_job": {
-    "job_id": "merge_20251101_143000",
-    "status": "success",
-    "started_at": "2025-11-01T14:30:00Z",
-    "completed_at": "2025-11-01T14:35:42Z",
-    "execution_time_seconds": 342,
-    "channels_included": 145,
-    "programs_included": 8234
-  }
-}
-```
+**Settings:**
+1. Go to **Settings** → **Schedule**
+2. Set **Schedule Frequency** to "Weekly"
+3. Set **Merge Time** to "15:00"
+4. Check: Monday, Wednesday, Friday
+5. Click **Save**
 
-### View Job History
+**Cron:** `0 15 * * 1,3,5`
 
-```bash
-curl http://localhost:9193/api/jobs/history?limit=10
-```
-
-Shows all recent jobs (scheduled and manual):
-
-```json
-{
-  "jobs": [
-    {
-      "job_id": "merge_20251101_143000",
-      "status": "success",
-      "started_at": "2025-11-01T14:30:00Z",
-      "completed_at": "2025-11-01T14:35:42Z",
-      "execution_time_seconds": 342,
-      "channels_included": 145,
-      "programs_included": 8234,
-      "file_size": "5.2 MB"
-    }
-  ],
-  "total": 47
-}
-```
-
-### Get Latest Job
-
-```bash
-curl http://localhost:9193/api/jobs/latest
-```
-
-### Manually Trigger a Job
-
-```bash
-curl -X POST http://localhost:9193/api/jobs/execute
-```
-
-This runs a merge immediately regardless of schedule.
-
-### Cancel Running Job
-
-```bash
-curl -X POST http://localhost:9193/api/jobs/cancel
-```
-
----
-
-## Database Schema
-
-Jobs are tracked in the `job_history` table:
-
-```sql
-CREATE TABLE job_history (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  job_id TEXT UNIQUE NOT NULL,          -- merge_YYYYMMDD_HHMMSS
-  status TEXT NOT NULL,                 -- pending|running|success|failed
-  started_at TIMESTAMP NOT NULL,
-  completed_at TIMESTAMP,
-  merge_filename TEXT,                  -- e.g., merged.xml.gz
-  channels_included INTEGER,
-  programs_included INTEGER,
-  file_size TEXT,                       -- e.g., "5.2 MB"
-  error_message TEXT,                   -- If status=failed
-  execution_time_seconds REAL
-);
-```
-
-### Query Examples
-
-```bash
-# Connect to database
-sqlite3 /config/app.db
-
-# View all jobs
-SELECT job_id, status, started_at, execution_time_seconds FROM job_history;
-
-# View failed jobs
-SELECT job_id, error_message FROM job_history WHERE status = 'failed';
-
-# Count successful jobs
-SELECT COUNT(*) FROM job_history WHERE status = 'success';
-```
-
----
-
-## Notifications
-
-### Discord Notifications
-
-When a scheduled job completes, optionally send a notification to Discord.
+### Different Sources/Channels per Merge
 
 **Setup:**
-
-1. Create Discord server webhook:
-   - Server Settings → Integrations → Webhooks
-   - Copy webhook URL
-
-2. Save to EPG Merge settings:
-   - Settings → Schedule → Discord Webhook
-   - Paste URL
-   - Click "Save"
-
-3. (Optional) Test notification:
-   - Run a manual merge: `POST /api/jobs/execute`
-   - Check Discord channel for notification
-
-**Webhook URL Format:**
-```
-https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
-```
-
-**Notification Example:**
-
-```
-📊 Merge Complete - Success
-
-Job ID: merge_20251101_143000
-Time: 5m 42s
-Channels: 145
-Programs: 8,234
-File Size: 5.2 MB
-Status: ✅ Success
-```
-
----
-
-## Advanced Configuration
-
-### Cron Expression Reference
-
-Cron syntax: `minute hour day month dayofweek`
-
-| Field | Range | Examples |
-|-------|-------|----------|
-| minute | 0-59 | 0 (every hour), 30 (at :30) |
-| hour | 0-23 | 2 (2 AM), 14 (2 PM) |
-| day | 1-31 | * (every day), 15 (15th) |
-| month | 1-12 | * (every month), 1 (January) |
-| dayofweek | 0-6 | 1 (Monday), 0,6 (weekends) |
-
-**Examples:**
-- `30 2 * * *` = Every day at 02:30
-- `0 3 * * 1,3,5` = Mon/Wed/Fri at 03:00
-- `0 0 * * 0,6` = Weekends at midnight
-- `*/15 * * * *` = Every 15 minutes
-- `0 9 * * 1-5` = Weekdays at 9 AM
+1. Save multiple source configurations: **Settings** → **Schedule** → Source Configuration dropdown
+2. Save multiple channel versions: **Channels** page → Save multiple times
+3. In **Settings** → **Schedule**, select which to use for scheduled merges
+4. Different from UI selections (which only affect manual merges)
 
 ---
 
 ## Monitoring
 
-### View Current Jobs
+### Dashboard (Easiest)
+
+Go to **Dashboard** page to see:
+- **Job Status** card - Running or Idle
+- **Next Scheduled Run** card - When next merge will execute
+- **Last Run** card - Results from most recent job
+- **Latest Job Details** - Full statistics from last execution
+- **Recent Job History** table - Last 10 jobs with sortable columns
+- **Buttons** - Refresh, Clear History, Cancel Job
+
+### API Endpoints
 
 ```bash
-ps aux | grep epg-merge
+# Current status
+curl http://localhost:9193/api/jobs/status
+
+# Job history (last 50)
+curl http://localhost:9193/api/jobs/history?limit=50
+
+# Latest job
+curl http://localhost:9193/api/jobs/latest
+
+# Manual trigger (for testing)
+curl -X POST http://localhost:9193/api/jobs/execute-now
+
+# Cancel running job
+curl -X POST http://localhost:9193/api/jobs/cancel
+
+# Clear all job history
+curl -X POST http://localhost:9193/api/jobs/clear-history
 ```
 
-### Check Service Status
+### Logs
 
 ```bash
-systemctl status epg-merge
+# View scheduler logs
+docker compose logs backend | grep -i scheduler
+
+# Or via systemd
+journalctl -u epg-merge | grep -i scheduler
+
+# Follow in real-time
+docker compose logs -f backend | grep -i scheduler
 ```
 
-### Monitor Logs
-
-**Live logs:**
-```bash
-journalctl -u epg-merge -f
+**Example output:**
 ```
-
-**Recent logs:**
-```bash
-journalctl -u epg-merge -n 50 --no-pager
-```
-
-**Search for merge jobs:**
-```bash
-journalctl -u epg-merge | grep "Job execution"
-```
-
-### Verify Execution
-
-After job completion, check:
-
-```bash
-# Get latest job result
-curl http://localhost:9193/api/jobs/latest | jq
-
-# Check if new archive was created
-curl http://localhost:9193/api/archives/list | jq '.data.archives | .[0]'
-
-# Verify merged file exists
-ls -lh /config/app.db
+🚀 SCHEDULER LOOP STARTED
+📅 Cron expression: 30 14 * * *
+⏱️ Next scheduled run: 2025-11-27 14:30:00 (89245s from now)
+😴 Sleeping until scheduled time...
+▶️ ===== EXECUTING SCHEDULED MERGE =====
+✅ Merge completed in 45.2s
+▶️ ===== MERGE COMPLETE: success =====
 ```
 
 ---
 
 ## Troubleshooting
 
-### Jobs Not Running?
+### Issue: Scheduler shows "No sources configured"
 
-**Check schedule status:**
-```bash
-curl http://localhost:9193/api/jobs/status | jq
+**Cause:** `selected_sources` not saved to database
+
+**Fix:**
+1. Go to **Settings** → **Schedule**
+2. Select a source configuration from dropdown
+3. Click **Save**
+4. Verify: 
+   ```bash
+   sqlite3 /config/app.db "SELECT value FROM settings WHERE key='selected_sources';"
+   # Should return: '["source1.xml.gz", "source2.xml.gz"]'
+   ```
+
+### Issue: Scheduler recalculates but doesn't run at new time
+
+**Cause:** Old sleep timer still active from previous calculation
+
+**Fix:** Scheduler now checks every 60 seconds. If you changed `merge_time`:
+- Scheduler will detect the change within 60 seconds
+- Will break out of sleep loop
+- Will recalculate
+- Will resume sleeping until new time
+
+**No restart needed!**
+
+### Issue: Merge never starts
+
+**Possible causes:**
+1. No sources selected - Go to **Settings** → **Schedule**, select source configuration
+2. No channels selected - Go to **Channels** page, select and save channels
+3. Job already running - Wait for it to finish, or click **Cancel Job** on Dashboard
+4. Time hasn't arrived - Check Dashboard for next scheduled time
+
+### Issue: "Cannot read properties of undefined" error
+
+**Cause:** Missing null checks in component before array operations
+
+**Fix:** Always use defensive coding:
+```javascript
+// CORRECT
+{Array.isArray(data) && data.length > 0 && data.map(item => ...)}
+
+// CORRECT - Optional chaining
+{version?.sources?.length || 0}
+
+// WRONG - Will crash if data is undefined
+{data.map(...)}
 ```
 
-**Verify settings:**
-```bash
-curl http://localhost:9193/api/settings/get | jq '.data | {merge_schedule, merge_time, merge_days}'
-```
+### Issue: Health check times out during merge
 
-**Check service is running:**
-```bash
-systemctl status epg-merge
-```
+**Cause:** Merges are CPU/IO intensive and can temporarily block API
 
-**View logs for errors:**
-```bash
-journalctl -u epg-merge -n 50 --no-pager | grep -i error
-```
-
-### Job Timeout?
-
-**Increase timeout in settings:**
-```bash
-curl -X POST http://localhost:9193/api/settings/set \
-  -H "Content-Type: application/json" \
-  -d '{"merge_timeout": 900}'
-```
-
-Valid range: 30-1800 seconds (30 seconds to 30 minutes)
-
-### Discord Notification Not Sent?
-
-**Verify webhook is configured:**
-```bash
-curl http://localhost:9193/api/settings/get | jq '.data.discord_webhook'
-```
-
-**Test with manual job:**
-```bash
-curl -X POST http://localhost:9193/api/jobs/execute
-```
-
-**Check logs for webhook errors:**
-```bash
-journalctl -u epg-merge | grep -i discord
-```
-
-### Job History Grows Too Large?
-
-Archive cleanup is automatic if enabled in settings:
-
-```bash
-curl http://localhost:9193/api/settings/get | jq '.data.archive_retention_cleanup_expired'
-```
-
-Enable if disabled:
-
-```bash
-curl -X POST http://localhost:9193/api/settings/set \
-  -H "Content-Type: application/json" \
-  -d '{"archive_retention_cleanup_expired": true}'
+**Fix:** Increase healthcheck timeout in docker-compose.yml:
+```yaml
+healthcheck:
+  timeout: 35s  # Increase from default 10s
 ```
 
 ---
 
-## Enabling Scheduled Execution (When Ready)
+## Discord Setup
 
-The infrastructure is 100% complete and ready. To enable scheduled execution when appropriate:
+### Create Webhook
 
-1. Edit `backend/services/job_service.py`
-2. Uncomment scheduler initialization
-3. Restart service: `systemctl restart epg-merge`
-4. Verify in logs: `journalctl -u epg-merge -f`
+1. Open Discord server
+2. Go to **Server Settings** → **Integrations** → **Webhooks**
+3. Click **New Webhook**
+4. Copy webhook URL
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for code details.
+### Configure EPG Merge
+
+1. Go to **Settings** → **Notifications**
+2. Paste webhook URL in **Discord Webhook** field
+3. Click **Save**
+
+### Test Notification
+
+1. Go to **Dashboard**
+2. Click **Refresh** button
+3. Or run manual merge: **Merge** page → **Start Merge**
+4. Check Discord channel for notification
+
+### Notification Format
+
+**Success:**
+```
+✅ Scheduled Merge Completed
+
+📋 Filename: merged.xml.gz
+📅 Created: 2025-11-26 14:30:15
+📦 Size: 45.2 MB
+🎬 Channels: 250
+📺 Programs: 15000
+📆 Days: 3
+🧠 Memory: 256.50 MB
+⏱️ Duration: 45.23s
+```
+
+**Failure:**
+```
+❌ Scheduled Merge Failed
+
+Error: Merge exceeded timeout limit of 300 seconds
+Job ID: scheduled_merge_20251126_143015
+```
 
 ---
 
-## Best Practices
+## Performance Tuning
 
-✅ **DO:**
-- Use UTC timezone (what times are displayed in)
-- Test schedule with a near-future time first
-- Monitor first run to ensure it works
-- Set up Discord notifications for visibility
-- Review job history monthly
+### For Large Merges
 
-❌ **DON'T:**
-- Schedule overlapping jobs (system prevents this)
-- Set extreme timeout values (keep reasonable)
-- Ignore failed jobs (check logs)
-- Rely on scheduling without testing manually first
+If merges are timing out:
+
+1. **Increase merge_timeout:**
+   - Go to **Settings** (or add custom setting)
+   - Increase to 600+ seconds
+   - Click **Save**
+
+2. **Reduce EPG timeframe:**
+   - **Settings** → **Schedule** → **EPG Timeframe**
+   - Use 3 days instead of 7/14
+   - Fewer days = faster merge
+
+3. **Reduce channels:**
+   - **Channels** page
+   - Select fewer channels
+   - Click **Save Channels**
+
+4. **Monitor memory:**
+   - **Dashboard** → **Latest Job Details** → **Memory**
+   - If using all available RAM, reduce timeframe or channels
+
+### For Faster Merges
+
+1. Schedule during off-peak hours (e.g., 3 AM)
+2. Use smaller timeframe (3 days vs 14)
+3. Select only needed channels
+4. Ensure sufficient disk space (merges need temp space)
 
 ---
 
 ## Common Schedules
 
-### Once Daily (Night)
-```json
-{"merge_schedule": "daily", "merge_time": "02:00"}
+**Once Daily (Night):**
+```
+Schedule: Daily
+Time: 02:00 UTC
 ```
 
-### Twice Daily (Morning & Evening)
-Not supported directly. Use two separate instances or manual triggers.
-
-### Business Hours (Weekdays 9-5)
-```json
-{
-  "merge_schedule": "weekly",
-  "merge_time": "09:00",
-  "merge_days": [1, 2, 3, 4, 5]
-}
+**Business Hours (Weekdays 9-5):**
+```
+Schedule: Weekly
+Time: 09:00 UTC
+Days: Monday-Friday
 ```
 
-### Weekly Sunday Afternoon
-```json
-{
-  "merge_schedule": "weekly",
-  "merge_time": "14:00",
-  "merge_days": [0]
-}
+**Weekly Sunday Afternoon:**
 ```
+Schedule: Weekly
+Time: 14:00 UTC
+Days: Sunday
+```
+
+**Twice Daily:**
+Not directly supported. Options:
+- Run two instances of EPG Merge
+- Use external scheduler (cron) to trigger manual merge via API
+
+---
+
+## FAQ
+
+**Q: What timezone is used?**
+A: UTC by default. Set `TZ` environment variable in docker-compose.yml to change.
+
+**Q: Can I change the schedule without restarting?**
+A: Yes! Scheduler detects changes within 60 seconds and recalculates.
+
+**Q: What happens if a merge takes longer than the next scheduled time?**
+A: Scheduler skips that run. Resumes on following scheduled time.
+
+**Q: Can I use different channels for different schedules?**
+A: Yes! Save multiple channel versions, select which to use in Settings.
+
+**Q: Are Discord notifications required?**
+A: No, completely optional. Leave webhook URL blank to disable.
+
+**Q: How long does a merge take?**
+A: Depends on timeframe and channels. Typically:
+- 3 days: 30-40s
+- 7 days: 50-70s
+- 14 days: 80-120s
+
+**Q: Can I manually run a merge outside schedule?**
+A: Yes! Go to **Merge** page → **Start Merge**, or click **Execute** on Dashboard.
 
 ---
 
 ## Related Documentation
 
-- [API Specification](API-SPEC.md) - Detailed endpoint documentation
-- [Maintenance](MAINTENANCE.md) - Monitoring and backups
+- [Dashboard Monitoring](README.md) - How to use Dashboard page
+- [API Reference](API-SPEC.md) - Job endpoints documentation
+- [Deployment](DEPLOYMENT.md) - Scheduler deployment considerations
 - [Troubleshooting](TROUBLESHOOTING.md) - Common issues
-- [Architecture](ARCHITECTURE.md) - System design and job service details
 
 ---
 
-**Questions?** Check [Troubleshooting](TROUBLESHOOTING.md) or see [API-SPEC.md](API-SPEC.md) for endpoint details.
+**Last Updated:** November 26, 2025 (v0.4.9 - Full Implementation)
